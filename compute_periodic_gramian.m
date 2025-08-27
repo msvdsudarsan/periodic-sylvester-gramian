@@ -1,11 +1,6 @@
 
----
 
-Next: the **MATLAB functions**. Copy each block into a separate file with the exact filename shown above the block (for example, copy the first block into a file named `compute_periodic_gramian.m`).
-
----
-
-### `compute_periodic_gramian.m`
+`compute_periodic_gramian.m`
 ```matlab
 function W = compute_periodic_gramian(A_func, B_func, K_func, T, N)
 % COMPUTE_PERIODIC_GRAMIAN Computes reachability Gramian for periodic Sylvester systems
