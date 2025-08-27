@@ -1,58 +1,49 @@
-function example2_performance_test()
-% EXAMPLE2_PERFORMANCE_TEST Performance comparison for different dimensions
-%
-% Author: M. S. V. D. Sudarsan
+% Example 2: Performance comparison for n in {5,10,15,20}, m=2
+clear; clc;
 
-    fprintf('=== Example 2: Performance Test ===\n');
-    
-    % Test dimensions
-    n_values = [3, 5, 8, 10];
-    m = 2;
-    T = 2*pi;
-    N = 51; % Moderate number of nodes
-    
-    fprintf('Testing dimensions n = [%s], m = %d\n', ...
-            sprintf('%d ', n_values), m);
-    fprintf('Period T = %.4f, Quadrature nodes N = %d\n\n', T, N);
-    
-    results = struct();
-    
-    for idx = 1:length(n_values)
-        n = n_values(idx);
-        fprintf('--- Testing n = %d ---\n', n);
-        
-        % Generate random periodic system
-        [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T);
-        
-        % Time the computation
-        tic;
-        W = compute_periodic_gramian(A_func, B_func, K_func, T, N);
-        comp_time = toc;
-        
-        % Analyze results
-        eigenvals = eig(W);
-        sigma_min = min(real(eigenvals));
-        sigma_max = max(real(eigenvals));
-        
-        % Store results
-        results(idx).n = n;
-        results(idx).time = comp_time;
-        results(idx).sigma_min = sigma_min;
-        results(idx).condition = sigma_max / sigma_min;
-        results(idx).memory_usage = n^4 * 8 / (1024^2); % Approximate MB
-        
-        fprintf('  Time: %.4f sec, σ_min: %.2e, Condition: %.2e\n', ...
-                comp_time, sigma_min, sigma_max/sigma_min);
+ns = [5 10 15 20];
+m  = 2;
+T  = 2*pi;
+N  = 101;
+
+results = struct('n',[],'t_block',[],'t_kron',[]);
+
+for idx = 1:numel(ns)
+    n = ns(idx);
+    [A_func,B_func,K_func] = generate_random_periodic_system(n,m,1);
+
+    % Block method timing
+    tic;
+    Wb = compute_periodic_gramian(A_func,B_func,K_func,T,N);
+    t_block = toc;
+
+    % Simple Kronecker baseline timing (integrates n^2 states per (k,j))
+    tic;
+    tau = linspace(0,T,N);
+    w = simpson_weights(N,T);
+    Wk = zeros(n^2, n^2);
+    for i = 1:N
+        Ktau = K_func(tau(i));
+        M_i = zeros(n^2, m*n);
+        for k = 1:m
+            for j = 1:n
+                ej = zeros(n,1); ej(j)=1;
+                Z0 = Ktau(:,k) * (ej.');
+                z0 = Z0(:);
+                rhs = @(t,z) kron(speye(n), A_func(t)) * z + kron(B_func(t).', speye(n)) * z;
+                opts = odeset('RelTol',1e-9,'AbsTol',1e-12);
+                [~, zsol] = ode45(rhs, [tau(i) T], z0, opts);
+                M_i(:, (k-1)*n + j) = zsol(end,:).';
+            end
+        end
+        Wk = Wk + w(i) * (M_i * M_i.');
     end
-    
-    % Summary table
-    fprintf('\n=== Performance Summary ===\n');
-    fprintf('n\tTime(s)\tσ_min\t\tCondition\tMemory(MB)\n');
-    fprintf('---------------------------------------------------\n');
-    for idx = 1:length(results)
-        fprintf('%d\t%.3f\t%.2e\t%.2e\t%.1f\n', ...
-                results(idx).n, results(idx).time, ...
-                results(idx).sigma_min, results(idx).condition, ...
-                results(idx).memory_usage);
-    end
+    t_kron = toc;
+
+    results(idx).n = n;
+    results(idx).t_block = t_block;
+    results(idx).t_kron  = t_kron;
+
+    fprintf('n=%2d: block=%.3f s, kron=%.3f s, speedup=%.1fx\n', ...
+            n, t_block, t_kron, t_kron/max(t_block,eps));
 end
