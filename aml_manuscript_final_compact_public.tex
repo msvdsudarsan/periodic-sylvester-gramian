@@ -33,7 +33,37 @@
 \sloppy
 
 % Hyperlinks
-\usepackage[hidelinks]{hyperref}
+\usepackage{hyperref}
+
+% --- hyperref: safe PDF string mapping (place immediately after \usepackage{hyperref}) ---
+\hypersetup{%
+  pdftitle={Controllability and Efficient Gramian Computation for Periodic Sylvester Matrix Systems},%
+  pdfauthor={M. S. V. D. Sudarsan},%
+  hidelinks % suppress link colors/boxes
+}
+
+\makeatletter
+\pdfstringdefDisableCommands{%
+  % Ignore frontmatter macros that cannot appear in PDF strings
+  \let\cortext\relax
+  \let\corref\relax
+  \let\cnotenum\relax
+  \let\@corref\relax
+  \let\tnoteref\relax
+  \let\tnotetext\relax
+  \let\ead\relax
+  \let\email\relax
+  \let\address\relax
+  \let\thanks\relax
+  % Map a few math macros to plain text for bookmarks
+  \def\Ktil{K}%
+  \def\Acal{A}%
+  \def\vect{vec}%
+  \def\ones{ones}%
+}
+\makeatother
+% --- end of hyperref fix ---
+
 
 % Journal specification
 \journal{Applied Mathematics Letters}
@@ -207,11 +237,14 @@ where \(\widetilde{P}(\tau)=P(\tau)^{-1}\Ktil(\tau)\). This congruence transform
 
 \section{Numerical Validation}
 \subsection{Example 1: Small system validation}
+\begin{sloppypar}
 For \(n=2\), \(m=1\), \(T=2\pi\):
 \[
-A(t)=\begin{bmatrix}0&1\\-1&0\end{bmatrix}+0.1\begin{bmatrix}\cos t&0\\0&\sin t\end{bmatrix},\;
+A(t)=\begin{bmatrix}0&1\\-1&0\end{bmatrix}+0.1\begin{bmatrix}\cos t&0\\0&\sin t\end{bmatrix},\;\\
 B(t)=\begin{bmatrix}0.5\sin t&0\\0&0.5\cos t\end{bmatrix},
 \]
+\end{sloppypar}
+
 \[
 K(t)=\begin{bmatrix}1+0.2\cos t \\ 0.5\sin t\end{bmatrix}.
 \]
@@ -226,16 +259,17 @@ Using composite Simpson's rule with \(N=101\) nodes and ODE tolerances (RelTol=\
 For \(n\in\{5,10,15,20\}\), \(m=2\), we generate random periodic coefficients and compare computation times:
 \begin{table}[h]
 \centering
-\caption{Computation time (seconds) and memory usage}
-\label{tab:performance}
-\begin{tabular}{ccccc}
+\small
+\setlength{\tabcolsep}{6pt}
+\hspace*{-0.6cm} % <--- adjust this value to move table left/right
+\begin{tabular}{@{}ccccc@{}}
 \toprule
 \(n\) & Direct Kronecker & Block Method & Speedup & Memory Ratio \\
 \midrule
-5 & 0.42 & 0.08 & 5.3× & 25:1 \\
-10 & 15.3 & 0.31 & 49× & 100:1 \\
-15 & 287 & 0.89 & 322× & 225:1 \\
-20 & 2140 & 2.1 & 1019× & 400:1 \\
+5   & 0.42  & 0.08  & 5.3×   & 25:1 \\
+10  & 15.3  & 0.31  & 49×    & 100:1 \\
+15  & 287   & 0.89  & 322×   & 225:1 \\
+20  & 2140  & 2.1   & 1019×  & 400:1 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -267,7 +301,9 @@ Consider a system with time-varying loss of controllability:
 \[
 K(t) = \begin{bmatrix} 1 \\ \epsilon\sin(t) \end{bmatrix}, \quad \epsilon = 10^{-8}
 \]
+\begin{sloppypar}
 Our algorithm correctly identifies near-singular \(W\) with \(\sigma_{\min}(W) = O(\epsilon^2)\), demonstrating robustness to numerical rank deficiency.
+\end{sloppypar}
 
 \section{Conclusions and Recommendations}
 We described an algorithm to compute reachability Gramians for periodic Sylvester matrix systems that avoids forming \(n^2\times n^2\) Kronecker matrices and reduces the dominant cost from \(O(N n^6)\) to \(O(N n^3 m)\). Practical suggestions for reliable use:
@@ -279,16 +315,21 @@ We described an algorithm to compute reachability Gramians for periodic Sylveste
 \end{itemize}
 
 \section*{Data and Code Availability}
+{\raggedright
 Complete MATLAB implementation including \texttt{compute\_periodic\_gramian.m},
 \texttt{block\_sylvester\_propagate.m}, and reproduction scripts are available at:
 \url{https://github.com/msvdsudarsan/periodic-sylvester-gramian}
 (The repository is publicly accessible.)
+\par}
 
 \section*{Funding}
 The author received no specific funding for this work.
 
 \section*{Declaration of Competing Interest}
 The author declares no competing interests.
+
+\section*{AI and Writing Assistance Declaration}
+The author confirms that no generative AI or AI-assisted technologies were used to generate data, perform analysis, or draw conclusions in this work. Limited AI-based tools (such as Grammarly, ChatGPT, Claude, and Quillbot) were used only for language refinement, grammar checking, and improving clarity of expression, under the author’s direct supervision. The intellectual content, analysis, and conclusions of the manuscript are solely the work of the author.
 
 \section*{Acknowledgements}
 The author acknowledges valuable discussions with researchers in the field
