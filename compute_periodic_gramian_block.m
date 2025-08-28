@@ -57,56 +57,44 @@ for i = 1:N
         continue;
     end
     
-    % For interior nodes, solve the adjoint equation
-    % dZ/dt = -A(t)'*Z, Z(T) = B(T)*K(T)*K(T)'*B(T)'
-    B_T = B_func(T);
-    K_T = K_func(T);
-    Z_T = B_T * (K_T * K_T') * B_T';
-    Z0 = Z_T(:); % Vectorize initial condition
+    % For interior nodes, compute the integrand properly
+    % We need Φ(0,τ) * B(τ) * K(τ) * K(τ)' * B(τ)' * Φ(0,τ)'
     
-    % Define the adjoint ODE: dZ/dt = -A(t)' ⊗ I - I ⊗ A(t)'
-    sylv_ode = @(t, z) sylvester_adjoint_ode(t, z, A_func, n);
+    % Method: Compute Φ(0,τ) by integrating forward from 0 to τ
+    % dx/dt = A(t)*x, x(0) = I
     
-    % Integrate from tau(i) to T
-    try
-        [~, Z_sol] = ode45(sylv_ode, [tau(i), T], Z0(:), opts);
+    % We need to compute n separate solutions (columns of Φ)
+    Phi_0_tau = zeros(n, n);
+    
+    % Integrate each column of the fundamental matrix
+    for col = 1:n
+        % Initial condition: e_col (column vector with 1 in position col, 0 elsewhere)
+        x0 = zeros(n, 1);
+        x0(col) = 1;
         
-        % Extract Z(tau(i)) and reshape
-        Z_tau_i = reshape(Z_sol(end, :), n, n);
+        % Define ODE: dx/dt = A(t)*x
+        state_ode = @(t, x) A_func(t) * x;
         
-        % Compute integrand: Φ(tau_i, T) * B(T) * K(T) * K(T)' * B(T)'
-        B_tau_i = B_func(tau(i));
-        K_tau_i = K_func(tau(i));
-        integrand = Z_tau_i * B_tau_i * (K_tau_i * K_tau_i') * B_tau_i';
+        % Integrate from 0 to tau(i)
+        [~, x_sol] = ode45(state_ode, [0, tau(i)], x0, opts);
+        
+        % Store the final value as column col of Φ(0,τ)
+        Phi_0_tau(:, col) = x_sol(end, :)';
+    end
+    
+    % Compute integrand: Φ(0,τ) * B(τ) * K(τ) * K(τ)' * B(τ)' * Φ(0,τ)'
+    B_tau_i = B_func(tau(i));
+    K_tau_i = K_func(tau(i));
+    integrand = Phi_0_tau * B_tau_i * (K_tau_i * K_tau_i') * B_tau_i' * Phi_0_tau';
         
         % Add weighted contribution
         W = W + w(i) * integrand;
         
     catch ME
         fprintf('Error at node %d (tau=%.6f): %s\n', i, tau(i), ME.message);
-        fprintf('Time span: [%.6f, %.6f], difference: %.2e\n', ...
-                tau(i), T, T - tau(i));
         rethrow(ME);
     end
 end
 
 fprintf('Gramian computation completed successfully!\n');
-end
-
-function dzdt = sylvester_adjoint_ode(t, z, A_func, n)
-%SYLVESTER_ADJOINT_ODE ODE for the adjoint equation
-% Solves: dZ/dt = -A(t)' * Z - Z * A(t)
-% where Z is vectorized as z = Z(:)
-
-A_t = A_func(t);
-A_t_T = A_t'; % A(t) transpose
-
-% Reshape z back to matrix form
-Z = reshape(z, n, n);
-
-% Compute dZ/dt = -A(t)' * Z - Z * A(t) = -(A(t)' * Z + Z * A(t))
-dZdt = -(A_t_T * Z + Z * A_t);
-
-% Vectorize the result
-dzdt = dZdt(:);
 end
