@@ -192,3 +192,85 @@ elseif rel_error_sigma_min < 0.15
 else
     accuracy_grade = 'Needs improvement';
 end
+
+% Numerical stability
+if kappa_computed < 1e8
+    stability_grade = 'Excellent';
+elseif kappa_computed < 1e10
+    stability_grade = 'Good';
+else
+    stability_grade = 'Poor';
+end
+
+fprintf('• Computation speed: %s (%.3f seconds)\n', timing_grade, computation_time);
+fprintf('• Numerical accuracy: %s (%.1f%% error)\n', accuracy_grade, rel_error_sigma_min*100);
+fprintf('• Numerical stability: %s (κ = %.2e)\n', stability_grade, kappa_computed);
+
+%% Summary Report
+fprintf('\n📝 VERIFICATION SUMMARY:\n');
+fprintf('%s\n', repmat('=', 1, 50));
+
+fprintf('Paper reproduction status: %s\n', verdict);
+fprintf('Key metrics agreement: σ_min %.1f%%, κ %.1f%%\n', ...
+        rel_error_sigma_min*100, rel_error_kappa*100);
+fprintf('Controllability confirmed: %s\n', matlab.lang.makeValidName(string(is_controllable)));
+fprintf('Implementation quality: %s\n', accuracy_grade);
+
+%% Recommendations
+fprintf('\n💡 RECOMMENDATIONS:\n');
+
+if strcmp(verdict, '✅ VERIFIED')
+    fprintf('• Implementation successfully reproduces paper results\n');
+    fprintf('• Ready for publication and practical applications\n');
+    fprintf('• Consider testing on additional examples for robustness\n');
+elseif strcmp(verdict, '⚠️  PARTIALLY VERIFIED')
+    fprintf('• Implementation shows reasonable agreement with paper\n');
+    fprintf('• Small discrepancies may be due to:\n');
+    fprintf('  - Different numerical integration methods\n');
+    fprintf('  - Slightly different ODE solver settings\n');
+    fprintf('  - Rounding in paper vs. full precision computation\n');
+    fprintf('• Consider adjusting quadrature parameters for better accuracy\n');
+else
+    fprintf('• Significant discrepancies detected - investigate:\n');
+    fprintf('  - System definition accuracy\n');
+    fprintf('  - Integration method implementation\n');
+    fprintf('  - ODE solver settings and tolerances\n');
+    fprintf('  - Potential transcription errors from paper\n');
+end
+
+fprintf('\nFor optimal results:\n');
+fprintf('• Use N ≥ 101 quadrature nodes for smooth systems\n');
+fprintf('• Monitor condition number κ(W) < 1e10\n');
+fprintf('• Verify Gramian properties: symmetric and PSD\n');
+fprintf('• Check controllability via σ_min(W) > 1e-10\n');
+
+%% Data Export
+fprintf('\n💾 RESULTS EXPORT:\n');
+
+verification_results = struct();
+verification_results.paper_sigma_min = paper_sigma_min;
+verification_results.paper_kappa = paper_kappa;
+verification_results.computed_sigma_min = sigma_min_computed;
+verification_results.computed_kappa = kappa_computed;
+verification_results.rel_error_sigma_min = rel_error_sigma_min;
+verification_results.rel_error_kappa = rel_error_kappa;
+verification_results.computation_time = computation_time;
+verification_results.verdict = verdict;
+verification_results.confidence = confidence;
+verification_results.controllable = is_controllable;
+
+assignin('base', 'verification_results', verification_results);
+fprintf('Results exported to workspace variable ''verification_results''\n');
+
+%% Final Status
+fprintf('\n%s\n', repmat('=', 1, 60));
+if strcmp(verdict, '✅ VERIFIED')
+    fprintf('🎉 SUCCESS: Paper results successfully reproduced!\n');
+elseif strcmp(verdict, '⚠️  PARTIALLY VERIFIED')
+    fprintf('⚠️  CAUTION: Partial agreement with paper results\n');
+else
+    fprintf('❌ ALERT: Significant deviation from paper results\n');
+end
+fprintf('%s\n', repmat('=', 1, 60));
+
+end
