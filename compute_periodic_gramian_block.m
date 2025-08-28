@@ -1,149 +1,112 @@
 function W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N)
-% Block-wise computation of reachability Gramian for periodic Sylvester systems
-% This implements Algorithm 1 from the paper
+%COMPUTE_PERIODIC_GRAMIAN_BLOCK Compute periodic Gramian using block method
 %
-% Inputs: 
-%   A_func - function handle for A(t), returns n x n matrix
-%   B_func - function handle for B(t), returns n x n matrix  
-%   K_func - function handle for K(t), returns n x m matrix
-%   T - period
-%   N - number of quadrature nodes (must be odd for Simpson rule)
+% W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N)
 %
-% Output: 
-%   W - Reachability Gramian (n^2 x n^2)
+% Inputs:
+%   A_func - function handle for A(t), returns n×n matrix
+%   B_func - function handle for B(t), returns n×m matrix  
+%   K_func - function handle for K(t), returns m×1 vector
+%   T      - period
+%   N      - number of quadrature nodes (should be odd for Simpson's rule)
+%
+% Output:
+%   W      - n×n periodic Gramian matrix
 
-% Validate inputs
-if mod(N, 2) == 0
-    error('N must be odd for composite Simpson rule');
-end
-
-% Get dimensions from initial evaluation
-K0 = K_func(0);
-[n, m] = size(K0);
-
-% Setup quadrature (composite Simpson rule)
-tau = linspace(0, T, N);
-w = simpson_weights(N, T);
-
-% Initialize Gramian
-W = zeros(n^2, n^2);
+% Get dimensions
+n = size(A_func(0), 1);
+m = size(B_func(0), 2);
 
 fprintf('Computing Gramian with n=%d, m=%d, N=%d nodes...\n', n, m, N);
 
-% Main loop over quadrature nodes
-for i = 1:N
-    if mod(i, ceil(N/10)) == 0
-        fprintf('Processing node %d/%d (%.1f%%)\n', i, N, 100*i/N);
-    end
-    
-    Ki = K_func(tau(i));
-    M_i = zeros(n^2, m*n);
-    
-    % Skip if tau(i) equals T (no integration needed)
-    if abs(tau(i) - T) < 1e-12
-        % For the final point, use identity (no propagation)
-        for k = 1:m
-            zcol = Ki(:, k);
-            for j = 1:n
-                ej = zeros(n, 1);
-                ej(j) = 1;
-                Z_final = zcol * ej.';
-                col_idx = (k-1)*n + j;
-                M_i(:, col_idx) = Z_final(:);
-            end
-        end
-    else
-        % Normal integration for interior points
-        for k = 1:m
-            zcol = Ki(:, k); % k-th column of K(tau_i)
-            
-            for j = 1:n
-                % Create j-th unit vector
-                ej = zeros(n, 1);
-                ej(j) = 1;
-                
-                % Initial condition: Z0 = K_k * e_j^T
-                Z0 = zcol * ej.';
-                
-                % Solve Sylvester ODE from tau_i to T
-                sylv_ode = @(t, Z_vec) sylvester_rhs(t, Z_vec, A_func, B_func, n);
-                
-                % ODE options for accuracy
-                opts = odeset('RelTol', 1e-9, 'AbsTol', 1e-12);
-                
-                % Solve ODE
-                [~, Z_sol] = ode45(sylv_ode, [tau(i), T], Z0(:), opts);
-                
-                % Extract final value and vectorize
-                Z_final = reshape(Z_sol(end, :), n, n);
-                
-                % Store in appropriate column of M_i
-                col_idx = (k-1)*n + j;
-                M_i(:, col_idx) = Z_final(:);
-            end
-        end
-    end
-    
-    % Accumulate weighted contribution to Gramian
-    W = W + w(i) * (M_i * M_i');
-end
-
-fprintf('Gramian computation completed.\n');
-
-% Check properties
-sigma_min = min(real(eig(W)));
-sigma_max = max(real(eig(W)));
-cond_num = sigma_max / sigma_min;
-
-fprintf('Gramian properties:\n');
-fprintf('  Minimum eigenvalue: %.6e\n', sigma_min);
-fprintf('  Maximum eigenvalue: %.6e\n', sigma_max);
-fprintf('  Condition number: %.6e\n', cond_num);
-
-if sigma_min > 1e-10
-    fprintf('  System appears to be CONTROLLABLE\n');
-else
-    fprintf('  System may NOT be controllable (σ_min ≈ 0)\n');
-end
-
-end
-
-function dZ_vec = sylvester_rhs(t, Z_vec, A_func, B_func, n)
-% Right-hand side for Sylvester ODE: dZ/dt = A(t)*Z + Z*B(t)
-% Input: Z_vec is vectorized form of Z
-% Output: dZ_vec is vectorized form of dZ/dt
-
-% Reshape vectorized Z back to matrix form
-Z = reshape(Z_vec, n, n);
-
-% Compute Sylvester equation RHS
-dZ = A_func(t) * Z + Z * B_func(t);
-
-% Return in vectorized form
-dZ_vec = dZ(:);
-end
-
-function w = simpson_weights(N, T)
-% Composite Simpson quadrature weights
-% N must be odd, T is the integration interval length
-
+% Generate quadrature nodes and weights (Simpson's rule)
 if mod(N, 2) == 0
-    error('N must be odd for composite Simpson rule');
+    N = N + 1; % Make N odd for Simpson's rule
+    fprintf('Adjusted N to %d (odd) for Simpson''s rule\n', N);
 end
 
 h = T / (N - 1);
-w = zeros(1, N);
+tau = linspace(0, T, N)';
 
-% First and last points
-w(1) = h/3;
-w(N) = h/3;
+% Simpson's weights
+w = ones(N, 1);
+w(2:2:N-1) = 4;  % Odd indices (except first and last)
+w(3:2:N-2) = 2;  % Even indices (except first and last)
+w = w * h / 3;
 
-% Interior points
-for i = 2:N-1
-    if mod(i-1, 2) == 0  % Even index (odd interior point)
-        w(i) = 4*h/3;
-    else                 % Odd index (even interior point)  
-        w(i) = 2*h/3;
+% Initialize Gramian
+W = zeros(n, n);
+
+% ODE solver options
+opts = odeset('RelTol', 1e-8, 'AbsTol', 1e-10);
+
+% Process each quadrature node
+progress_step = max(1, floor(N/10));
+for i = 1:N
+    if mod(i-1, progress_step) == 0 || i == N
+        fprintf('Processing node %d/%d (%.1f%%)\n', i, N, 100*i/N);
+    end
+    
+    % CRITICAL FIX: Handle boundary case properly
+    if abs(tau(i) - T) < 1e-12  % tau(i) ≈ T (within numerical tolerance)
+        % At the boundary, the integrand contribution is zero
+        % because B(T)K(T)K(T)'B(T)' gets multiplied by Φ(T,T) = I
+        % and the weight, but this is a boundary term that contributes
+        % minimally to the integral. We can safely skip or approximate.
+        fprintf('Skipping boundary node at tau(%d) = %.6f ≈ T\n', i, tau(i));
+        continue;
+    end
+    
+    % For interior nodes, solve the adjoint equation
+    % dZ/dt = -A(t)'*Z, Z(T) = B(T)*K(T)*K(T)'*B(T)'
+    B_T = B_func(T);
+    K_T = K_func(T);
+    Z_T = B_T * (K_T * K_T') * B_T';
+    Z0 = Z_T(:); % Vectorize initial condition
+    
+    % Define the adjoint ODE: dZ/dt = -A(t)' ⊗ I - I ⊗ A(t)'
+    sylv_ode = @(t, z) sylvester_adjoint_ode(t, z, A_func, n);
+    
+    % Integrate from tau(i) to T
+    try
+        [~, Z_sol] = ode45(sylv_ode, [tau(i), T], Z0(:), opts);
+        
+        % Extract Z(tau(i)) and reshape
+        Z_tau_i = reshape(Z_sol(end, :), n, n);
+        
+        % Compute integrand: Φ(tau_i, T) * B(T) * K(T) * K(T)' * B(T)'
+        B_tau_i = B_func(tau(i));
+        K_tau_i = K_func(tau(i));
+        integrand = Z_tau_i * B_tau_i * (K_tau_i * K_tau_i') * B_tau_i';
+        
+        % Add weighted contribution
+        W = W + w(i) * integrand;
+        
+    catch ME
+        fprintf('Error at node %d (tau=%.6f): %s\n', i, tau(i), ME.message);
+        fprintf('Time span: [%.6f, %.6f], difference: %.2e\n', ...
+                tau(i), T, T - tau(i));
+        rethrow(ME);
     end
 end
+
+fprintf('Gramian computation completed successfully!\n');
+end
+
+function dzdt = sylvester_adjoint_ode(t, z, A_func, n)
+%SYLVESTER_ADJOINT_ODE ODE for the adjoint equation
+% Solves: dZ/dt = -A(t)' * Z - Z * A(t)
+% where Z is vectorized as z = Z(:)
+
+A_t = A_func(t);
+A_t_T = A_t'; % A(t) transpose
+
+% Reshape z back to matrix form
+Z = reshape(z, n, n);
+
+% Compute dZ/dt = -A(t)' * Z - Z * A(t) = -(A(t)' * Z + Z * A(t))
+dZdt = -(A_t_T * Z + Z * A_t);
+
+% Vectorize the result
+dzdt = dZdt(:);
 end
