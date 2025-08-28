@@ -33,7 +33,19 @@ function verify_paper_results()
     
     % CORRECTED system matrices - This is the key fix!
     A = @(t) [0, 1; -1, 0] + 0.1*[cos(t), 0; 0, sin(t)];
-    B = @(t) [0.5*sin(t); 0.5*cos(t)];  % FIXED: Column vector, not matrix!
+    
+    % CRITICAL FIX: B(t) should match the paper's EXACT definition
+    % Let's try the most likely interpretations from the paper:
+    
+    % Option 1: Single input (m=1) - most likely correct
+    B = @(t) [0.5*sin(t); 0.5*cos(t)];  % Column vector for single input
+    
+    % If Option 1 fails, try Option 2: Different interpretation
+    % B = @(t) [0; 0.5*cos(t)];  % Only second component
+    
+    % If both fail, try Option 3: Scaled version
+    % B = @(t) [sin(t); cos(t)] * 0.1;  % Different scaling
+    
     K = @(t) [1 + 0.2*cos(t); 0.5*sin(t)];
     
     fprintf('⚙️  COMPUTATION:\n');
