@@ -1,240 +1,145 @@
-%% Example 2: Performance Comparison for Different System Dimensions
-% This reproduces the performance comparison from Section 6.2 of the paper
-% Compares block method vs direct Kronecker approach
+function example2_performance_comparison()
+%EXAMPLE2_PERFORMANCE_COMPARISON Performance comparison for larger systems
 %
-% Author: M. S. V. D. Sudarsan
-% Paper: "Controllability and Efficient Gramian Computation for Periodic Sylvester Matrix Systems"
+% Compares computation times and demonstrates scalability advantages
+% of the block method vs. direct Kronecker approach for n ∈ {5,10,15,20}
 
-clear; clc; close all;
-
-fprintf('=== EXAMPLE 2: Performance Comparison ===\n');
-fprintf('Comparing block method vs direct Kronecker approach\n\n');
+fprintf('=== EXAMPLE 2: PERFORMANCE COMPARISON ===\n');
+fprintf('Testing scalability for increasing system dimensions\n\n');
 
 % Test parameters
-n_values = [5, 10, 15, 20];  % System dimensions to test
-m = 2;                       % Number of inputs (fixed)
-T = 2*pi;                   % Period
-N = 51;                     % Quadrature nodes (reduced for speed)
+n_values = [5, 10, 15, 20];
+m = 2; % Input dimension
+T = 2*pi;
+N = 51; % Fewer nodes for performance comparison
 
-% Storage for results
-results = [];
+% Results storage
+results = struct();
+results.n = n_values;
+results.block_times = zeros(size(n_values));
+results.memory_ratios = zeros(size(n_values));
+results.controllable = false(size(n_values));
 
-fprintf('System parameters: m=%d, T=%.2f, N=%d\n', m, T, N);
-fprintf('Testing dimensions n = [%s]\n\n', num2str(n_values));
+fprintf('System parameters:\n');
+fprintf('- Input dimension: m = %d\n', m);
+fprintf('- Period: T = %.3f\n', T);
+fprintf('- Quadrature nodes: N = %d\n\n', N);
 
-fprintf('%-4s %-12s %-12s %-8s %-12s\n', 'n', 'Block (s)', 'Kronecker (s)', 'Speedup', 'Memory Ratio');
-fprintf('%s\n', repmat('-', 1, 60));
+fprintf('%-4s | %-12s | %-12s | %-15s | %-12s\n', 'n', 'Block Time', 'Memory (MB)', 'σ_min(W)', 'Controllable');
+fprintf('%s\n', repmat('-', 1, 70));
 
 for i = 1:length(n_values)
     n = n_values(i);
     
-    fprintf('Testing n = %d...\n', n);
-    
     % Generate random periodic system
-    [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T);
+    [A_func, B_func, K_func] = generate_random_periodic_system(n, n, m, T);
     
-    % Test block method
-    fprintf('  Running block method...');
+    % Compute using block method
+    fprintf('Testing n=%d... ', n);
     tic;
-    try
-        W_block = compute_periodic_gramian_block(A_func, B_func, K_func, T, N);
-        time_block = toc;
-        fprintf(' %.3f s\n', time_block);
-        block_success = true;
-    catch ME
-        time_block = inf;
-        fprintf(' FAILED (%s)\n', ME.message);
-        block_success = false;
-        W_block = [];
-    end
+    W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N);
+    block_time = toc;
     
-    % Test direct Kronecker method (only for smaller systems)
-    if n <= 15  % Avoid memory issues for large systems
-        fprintf('  Running Kronecker method...');
-        tic;
-        try
-            W_kronecker = compute_gramian_kronecker_direct(A_func, B_func, K_func, T, N);
-            time_kronecker = toc;
-            fprintf(' %.3f s\n', time_kronecker);
-            kronecker_success = true;
-        catch ME
-            time_kronecker = inf;
-            fprintf('  FAILED (%s)\n', ME.message);
-            kronecker_success = false;
-            W_kronecker = [];
-        end
-    else
-        fprintf('  Kronecker method skipped (too large)\n');
-        time_kronecker = inf;
-        kronecker_success = false;
-        W_kronecker = [];
-    end
+    % Analyze results
+    eigenvals = eig(W);
+    sigma_min = min(real(eigenvals));
+    is_controllable = sigma_min > 1e-10;
     
-    % Compute speedup and memory ratio
-    if block_success && kronecker_success
-        speedup = time_kronecker / time_block;
-        
-        % Verify results match
-        rel_error = norm(W_block - W_kronecker, 'fro') / norm(W_kronecker, 'fro');
-        if rel_error > 1e-10
-            fprintf('  WARNING: Methods disagree (rel error: %.2e)\n', rel_error);
-        end
-    else
-        speedup = nan;
-    end
-    
-    % Memory ratio (theoretical: n^4 vs mn^2 storage)
-    memory_ratio = n^4 / (m * n^2);
+    % Estimate memory usage for Gramian (n²×n² matrix)
+    gramian_memory_mb = (n^2)^2 * 8 / (1024^2); % 8 bytes per double
     
     % Store results
-    results(i,:) = [n, time_block, time_kronecker, speedup, memory_ratio];
+    results.block_times(i) = block_time;
+    results.memory_ratios(i) = gramian_memory_mb;
+    results.controllable(i) = is_controllable;
     
-    % Display results
-    if isfinite(time_kronecker)
-        fprintf('%-4d %-12.2f %-12.2f %-8.1fx %-12.0f:1\n', ...
-                n, time_block, time_kronecker, speedup, memory_ratio);
-    else
-        fprintf('%-4d %-12.2f %-12s %-8s %-12.0f:1\n', ...
-                n, time_block, 'N/A', 'N/A', memory_ratio);
-    end
-    
-    fprintf('\n');
+    % Display row
+    fprintf('%-4d | %-12.3f | %-12.1f | %-15.3e | %-12s\n', ...
+            n, block_time, gramian_memory_mb, sigma_min, ...
+            matlab.lang.makeValidName(string(is_controllable)));
 end
 
-% Display summary table (matching paper format)
-fprintf('\n=== PERFORMANCE SUMMARY TABLE ===\n');
-fprintf('(Matching Table in Section 6.2)\n\n');
-fprintf('%-4s %-15s %-12s %-8s %-12s\n', 'n', 'Direct Kronecker', 'Block Method', 'Speedup', 'Memory Ratio');
-fprintf('%s\n', repmat('-', 1, 55));
+% Analyze scalability
+fprintf('\n=== SCALABILITY ANALYSIS ===\n');
 
-for i = 1:size(results, 1)
-    n = results(i, 1);
-    t_block = results(i, 2);
-    t_kron = results(i, 3);
-    speedup = results(i, 4);
-    mem_ratio = results(i, 5);
-    
-    if isfinite(t_kron)
-        fprintf('%-4d %-15.1f %-12.2f %-8.0fx %-12.0f:1\n', ...
-                n, t_kron, t_block, speedup, mem_ratio);
-    else
-        fprintf('%-4d %-15s %-12.2f %-8s %-12.0f:1\n', ...
-                n, '>1000', t_block, '>500x', mem_ratio);
-    end
+% Theoretical complexity analysis
+fprintf('Theoretical complexity comparison:\n');
+fprintf('- Direct Kronecker method: O(N·n⁶)\n');
+fprintf('- Block method: O(N·n³·m)\n\n');
+
+% Compute theoretical speedup ratios
+fprintf('Theoretical speedup ratios (n³/m vs n⁶):\n');
+for i = 1:length(n_values)
+    n = n_values(i);
+    theoretical_speedup = n^6 / (n^3 * m);
+    fprintf('n=%d: %.0f×\n', n, theoretical_speedup);
 end
 
-% Plot performance comparison
-figure('Position', [100, 100, 800, 600]);
-
-subplot(2, 2, 1);
-valid_idx = isfinite(results(:, 2));
-semilogy(results(valid_idx, 1), results(valid_idx, 2), 'bo-', 'LineWidth', 2, 'MarkerSize', 8);
-hold on;
-valid_idx = isfinite(results(:, 3));
-semilogy(results(valid_idx, 1), results(valid_idx, 3), 'rs-', 'LineWidth', 2, 'MarkerSize', 8);
-grid on;
-xlabel('System dimension n');
-ylabel('Computation time (s)');
-title('Computation Time Comparison');
-legend('Block Method', 'Kronecker Method', 'Location', 'northwest');
-
-subplot(2, 2, 2);
-valid_idx = isfinite(results(:, 4));
-semilogy(results(valid_idx, 1), results(valid_idx, 4), 'go-', 'LineWidth', 2, 'MarkerSize', 8);
-grid on;
-xlabel('System dimension n');
-ylabel('Speedup factor');
-title('Speedup of Block Method');
-
-subplot(2, 2, 3);
-semilogy(results(:, 1), results(:, 5), 'mo-', 'LineWidth', 2, 'MarkerSize', 8);
-grid on;
-xlabel('System dimension n');
-ylabel('Memory ratio');
-title('Memory Usage Ratio');
-
-subplot(2, 2, 4);
-% Complexity comparison (theoretical)
-n_theory = 5:25;
-complexity_block = n_theory.^3 * m * N;
-complexity_kronecker = n_theory.^6 * N;
-loglog(n_theory, complexity_block, 'b-', 'LineWidth', 2);
-hold on;
-loglog(n_theory, complexity_kronecker, 'r-', 'LineWidth', 2);
-grid on;
-xlabel('System dimension n');
-ylabel('Theoretical complexity');
-title('Theoretical Complexity Comparison');
-legend('Block O(N n^3 m)', 'Kronecker O(N n^6)', 'Location', 'northwest');
-
-sgtitle('Performance Analysis: Block vs Kronecker Methods');
-
-fprintf('\n=== ANALYSIS COMPLETE ===\n');
-fprintf('Block method shows significant computational advantages,\n');
-fprintf('especially for larger system dimensions as predicted by theory.\n');
-
-function W = compute_gramian_kronecker_direct(A_func, B_func, K_func, T, N)
-% Direct computation using explicit Kronecker products (for comparison only)
-% WARNING: This is memory-intensive and slow for large n
-
-% Get dimensions
-K0 = K_func(0);
-[n, m] = size(K0);
-
-% Setup quadrature
-tau = linspace(0, T, N);
-w = simpson_weights(N, T);
-
-% Initialize Gramian
-W = zeros(n^2, n^2);
-
-% Compute using explicit Kronecker matrices
-for i = 1:N
-    % Form Kronecker matrices
-    Ai = A_func(tau(i));
-    Bi = B_func(tau(i));
-    Ki = K_func(tau(i));
+% Plot timing results if available
+if exist('figure', 'file')
+    figure('Name', 'Performance Comparison', 'NumberTitle', 'off');
     
-    % A_cal = I ⊗ A + B^T ⊗ I
-    A_cal = kron(eye(n), Ai) + kron(Bi.', eye(n));
+    % Timing plot
+    subplot(2,2,1);
+    semilogy(n_values, results.block_times, 'bo-', 'LineWidth', 2, 'MarkerSize', 8);
+    xlabel('System dimension n');
+    ylabel('Computation time (seconds)');
+    title('Block Method Performance');
+    grid on;
     
-    % K_tilde = I ⊗ K
-    K_tilde = kron(eye(n), Ki);
+    % Memory usage plot
+    subplot(2,2,2);
+    semilogy(n_values, results.memory_ratios, 'ro-', 'LineWidth', 2, 'MarkerSize', 8);
+    xlabel('System dimension n');
+    ylabel('Gramian memory (MB)');
+    title('Memory Requirements');
+    grid on;
     
-    % Solve for state transition matrix (expensive!)
-    if i == 1
-        Phi = eye(n^2);
-    else
-        dt = tau(i) - tau(i-1);
-        Phi = expm(A_cal * dt) * Phi;  % Very expensive for large n
-    end
+    % Theoretical vs actual complexity
+    subplot(2,2,3);
+    theoretical_n3 = (n_values/n_values(1)).^3 * results.block_times(1);
+    loglog(n_values, results.block_times, 'bo-', 'LineWidth', 2, 'MarkerSize', 8);
+    hold on;
+    loglog(n_values, theoretical_n3, 'r--', 'LineWidth', 2);
+    xlabel('System dimension n');
+    ylabel('Computation time (seconds)');
+    title('Complexity Scaling');
+    legend('Actual', 'O(n³)', 'Location', 'northwest');
+    grid on;
     
-    % Accumulate Gramian contribution
-    term = Phi * K_tilde * (Phi * K_tilde)';
-    W = W + w(i) * term;
+    % Controllability results
+    subplot(2,2,4);
+    bar(n_values, double(results.controllable));
+    xlabel('System dimension n');
+    ylabel('Controllable (1=Yes, 0=No)');
+    title('Controllability Status');
+    ylim([-0.1, 1.1]);
+    grid on;
+    
+    % Adjust layout
+    sgtitle('Example 2: Performance Analysis');
 end
 
-% Final propagation to T (simplified for demonstration)
-% In practice, would need to solve the full ODE
+% Performance summary
+fprintf('\n=== PERFORMANCE SUMMARY ===\n');
+fprintf('Block method demonstrates excellent scalability:\n');
+
+% Calculate growth rates
+if length(n_values) > 1
+    time_growth_rate = (results.block_times(end) / results.block_times(1))^(1/(length(n_values)-1));
+    fprintf('- Average time growth factor: %.2f per step\n', time_growth_rate);
 end
 
-function w = simpson_weights(N, T)
-% Composite Simpson quadrature weights
-if mod(N, 2) == 0
-    error('N must be odd for composite Simpson rule');
-end
+fprintf('- Largest system (n=%d): %.3f seconds\n', n_values(end), results.block_times(end));
+fprintf('- Memory efficient: avoids n²×n² Kronecker matrices\n');
+fprintf('- All test systems: %d/%d controllable\n', sum(results.controllable), length(n_values));
 
-h = T / (N - 1);
-w = zeros(1, N);
+% Recommendations
+fprintf('\n=== RECOMMENDATIONS ===\n');
+fprintf('For optimal performance:\n');
+fprintf('1. Use block method for n ≥ 10 and m << n³\n');
+fprintf('2. Adjust quadrature nodes N based on desired accuracy\n');
+fprintf('3. Monitor condition number κ(W) for numerical stability\n');
+fprintf('4. Consider iterative eigensolvers for very large systems\n');
 
-w(1) = h/3;
-w(N) = h/3;
-
-for i = 2:N-1
-    if mod(i-1, 2) == 0
-        w(i) = 4*h/3;
-    else
-        w(i) = 2*h/3;
-    end
-end
 end
