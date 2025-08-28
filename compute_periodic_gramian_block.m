@@ -60,32 +60,33 @@ for i = 1:N
     % For interior nodes, compute the integrand properly
     % We need Φ(0,τ) * B(τ) * K(τ) * K(τ)' * B(τ)' * Φ(0,τ)'
     
-    % Method: Compute Φ(0,τ) by integrating forward from 0 to τ
-    % dx/dt = A(t)*x, x(0) = I
-    
-    % We need to compute n separate solutions (columns of Φ)
-    Phi_0_tau = zeros(n, n);
-    
-    % Integrate each column of the fundamental matrix
-    for col = 1:n
-        % Initial condition: e_col (column vector with 1 in position col, 0 elsewhere)
-        x0 = zeros(n, 1);
-        x0(col) = 1;
+    try
+        % Method: Compute Φ(0,τ) by integrating forward from 0 to τ
+        % dx/dt = A(t)*x, x(0) = I
         
-        % Define ODE: dx/dt = A(t)*x
-        state_ode = @(t, x) A_func(t) * x;
+        % We need to compute n separate solutions (columns of Φ)
+        Phi_0_tau = zeros(n, n);
         
-        % Integrate from 0 to tau(i)
-        [~, x_sol] = ode45(state_ode, [0, tau(i)], x0, opts);
+        % Integrate each column of the fundamental matrix
+        for col = 1:n
+            % Initial condition: e_col (column vector with 1 in position col, 0 elsewhere)
+            x0 = zeros(n, 1);
+            x0(col) = 1;
+            
+            % Define ODE: dx/dt = A(t)*x
+            state_ode = @(t, x) A_func(t) * x;
+            
+            % Integrate from 0 to tau(i)
+            [~, x_sol] = ode45(state_ode, [0, tau(i)], x0, opts);
+            
+            % Store the final value as column col of Φ(0,τ)
+            Phi_0_tau(:, col) = x_sol(end, :)';
+        end
         
-        % Store the final value as column col of Φ(0,τ)
-        Phi_0_tau(:, col) = x_sol(end, :)';
-    end
-    
-    % Compute integrand: Φ(0,τ) * B(τ) * K(τ) * K(τ)' * B(τ)' * Φ(0,τ)'
-    B_tau_i = B_func(tau(i));
-    K_tau_i = K_func(tau(i));
-    integrand = Phi_0_tau * B_tau_i * (K_tau_i * K_tau_i') * B_tau_i' * Phi_0_tau';
+        % Compute integrand: Φ(0,τ) * B(τ) * K(τ) * K(τ)' * B(τ)' * Φ(0,τ)'
+        B_tau_i = B_func(tau(i));
+        K_tau_i = K_func(tau(i));
+        integrand = Phi_0_tau * B_tau_i * (K_tau_i * K_tau_i') * B_tau_i' * Phi_0_tau';
         
         % Add weighted contribution
         W = W + w(i) * integrand;
