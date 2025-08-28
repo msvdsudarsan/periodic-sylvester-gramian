@@ -11,9 +11,6 @@ function W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N)
 %
 % Output: 
 %   W - Reachability Gramian (n^2 x n^2)
-%
-% Author: M. S. V. D. Sudarsan
-% Paper: "Controllability and Efficient Gramian Computation for Periodic Sylvester Matrix Systems"
 
 % Validate inputs
 if mod(N, 2) == 0
@@ -42,33 +39,48 @@ for i = 1:N
     Ki = K_func(tau(i));
     M_i = zeros(n^2, m*n);
     
-    % Loop over input columns and basis columns
-    for k = 1:m
-        zcol = Ki(:, k); % k-th column of K(tau_i)
-        
-        for j = 1:n
-            % Create j-th unit vector
-            ej = zeros(n, 1);
-            ej(j) = 1;
+    % Skip if tau(i) equals T (no integration needed)
+    if abs(tau(i) - T) < 1e-12
+        % For the final point, use identity (no propagation)
+        for k = 1:m
+            zcol = Ki(:, k);
+            for j = 1:n
+                ej = zeros(n, 1);
+                ej(j) = 1;
+                Z_final = zcol * ej.';
+                col_idx = (k-1)*n + j;
+                M_i(:, col_idx) = Z_final(:);
+            end
+        end
+    else
+        % Normal integration for interior points
+        for k = 1:m
+            zcol = Ki(:, k); % k-th column of K(tau_i)
             
-            % Initial condition: Z0 = K_k * e_j^T
-            Z0 = zcol * ej.';
-            
-            % Solve Sylvester ODE from tau_i to T
-            sylv_ode = @(t, Z_vec) sylvester_rhs(t, Z_vec, A_func, B_func, n);
-            
-            % ODE options for accuracy
-            opts = odeset('RelTol', 1e-9, 'AbsTol', 1e-12);
-            
-            % Solve ODE
-            [~, Z_sol] = ode45(sylv_ode, [tau(i), T], Z0(:), opts);
-            
-            % Extract final value and vectorize
-            Z_final = reshape(Z_sol(end, :), n, n);
-            
-            % Store in appropriate column of M_i
-            col_idx = (k-1)*n + j;
-            M_i(:, col_idx) = Z_final(:);
+            for j = 1:n
+                % Create j-th unit vector
+                ej = zeros(n, 1);
+                ej(j) = 1;
+                
+                % Initial condition: Z0 = K_k * e_j^T
+                Z0 = zcol * ej.';
+                
+                % Solve Sylvester ODE from tau_i to T
+                sylv_ode = @(t, Z_vec) sylvester_rhs(t, Z_vec, A_func, B_func, n);
+                
+                % ODE options for accuracy
+                opts = odeset('RelTol', 1e-9, 'AbsTol', 1e-12);
+                
+                % Solve ODE
+                [~, Z_sol] = ode45(sylv_ode, [tau(i), T], Z0(:), opts);
+                
+                % Extract final value and vectorize
+                Z_final = reshape(Z_sol(end, :), n, n);
+                
+                % Store in appropriate column of M_i
+                col_idx = (k-1)*n + j;
+                M_i(:, col_idx) = Z_final(:);
+            end
         end
     end
     
