@@ -1,112 +1,169 @@
 function W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N)
-%COMPUTE_PERIODIC_GRAMIAN_BLOCK Block-wise computation of reachability Gramian
+% COMPUTE_PERIODIC_GRAMIAN_BLOCK Block-wise computation of reachability Gramian
+% 
+% This function computes the reachability Gramian for periodic Sylvester 
+% matrix systems using a structure-exploiting block propagation algorithm
+% that avoids explicit formation of n^2 x n^2 Kronecker matrices.
 %
-% W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N)
+% SYNTAX:
+%   W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N)
 %
-% Computes the reachability Gramian for the periodic Sylvester system:
-%   dX/dt = A(t)*X + X*B(t) + K(t)*U(t)
+% INPUTS:
+%   A_func - Function handle for A(t) matrix (n x n)
+%   B_func - Function handle for B(t) matrix (n x n) 
+%   K_func - Function handle for K(t) matrix (n x m)
+%   T      - Period length
+%   N      - Number of quadrature nodes (must be odd for Simpson rule)
 %
-% Inputs:
-%   A_func - function handle for A(t), returns n×n matrix
-%   B_func - function handle for B(t), returns n×n matrix  
-%   K_func - function handle for K(t), returns n×m matrix
-%   T      - period
-%   N      - number of quadrature nodes (should be odd for Simpson's rule)
+% OUTPUT:
+%   W      - Reachability Gramian (n^2 x n^2)
 %
-% Output:
-%   W      - n²×n² reachability Gramian matrix
+% ALGORITHM:
+%   Uses block-wise propagation to reduce computational complexity from
+%   O(N*n^6) to O(N*n^3*m) by solving n*m Sylvester ODEs of size n x n
+%   instead of one ODE of size n^2 x n^2.
 %
-% Algorithm avoids forming n²×n² Kronecker matrices by solving
-% mn Sylvester ODEs of size n×n, reducing complexity from O(Nn⁶) to O(Nn³m).
+% REFERENCE:
+%   M.S.V.D. Sudarsan, "Controllability and Efficient Gramian Computation 
+%   for Periodic Sylvester Matrix Systems", Applied Mathematics Letters (2025)
+%
+% Author: M. S. V. D. Sudarsan
+% Email: msvdsudarsan@gmail.com
 
-% Get dimensions
+% Input validation
+if nargin < 5
+    error('All five inputs are required: A_func, B_func, K_func, T, N');
+end
+
+if mod(N,2) == 0
+    error('N must be odd for composite Simpson rule');
+end
+
+% Get system dimensions
 K0 = K_func(0);
 [n, m] = size(K0);
 
-fprintf('Computing Gramian: n=%d, m=%d, period T=%.3f, N=%d nodes\n', n, m, T, N);
+fprintf('Computing Gramian: n=%d, m=%d, T=%.2f, N=%d\n', n, m, T, N);
 
-% Quadrature setup (composite Simpson's rule)
-if mod(N, 2) == 0
-    N = N + 1; % Make N odd for Simpson's rule
-    fprintf('Adjusted N to %d (odd) for Simpson''s rule\n', N);
-end
-
+% Quadrature setup (composite Simpson)
 tau = linspace(0, T, N);
 w = simpson_weights(N, T);
 
 % Initialize Gramian
 W = zeros(n^2, n^2);
 
-% ODE solver options
-opts = odeset('RelTol', 1e-9, 'AbsTol', 1e-12);
-
 % Main loop over quadrature nodes
-progress_step = max(1, floor(N/10));
 for i = 1:N
-    if mod(i-1, progress_step) == 0 || i == N
-        fprintf('Processing node %d/%d (%.1f%%)\n', i, N, 100*i/N);
-    end
-    
-    % Skip boundary node at tau = T to avoid ODE integration issues
-    if abs(tau(i) - T) < 1e-12
-        fprintf('Skipping boundary node at tau(%d) = %.6f ≈ T\n', i, tau(i));
-        continue;
-    end
-    
+    % Get K(tau_i)
     Ki = K_func(tau(i));
+    
+    % Initialize propagation matrix for this node
     M_i = zeros(n^2, m*n);
     
-    % Loop over input columns and basis columns
+    % Loop over input columns (k = 1 to m)
     for k = 1:m
-        zcol = Ki(:, k); % n×1 column vector
+        % Get k-th column of K(tau_i)
+        kcol = Ki(:, k); % n x 1 vector
         
+        % Loop over basis directions (j = 1 to n)
         for j = 1:n
-            % Create j-th basis vector
-            ej = zeros(n, 1); 
+            % Create standard basis vector e_j
+            ej = zeros(n, 1);
             ej(j) = 1;
             
-            % Initial condition: Z0 = zcol * ej^T (rank-1 matrix)
-            Z0 = zcol * ej';
+            % Initial condition: Z0 = kcol * ej^T (n x n matrix)
+            Z0 = kcol * ej';
             
-            % Solve Sylvester ODE: dZ/dt = A(t)*Z + Z*B(t)
-            % from tau(i) to T with initial condition Z(tau(i)) = Z0
-            sylv_ode = @(t, Z_vec) sylvester_rhs(t, Z_vec, A_func, B_func);
+            % Solve Sylvester ODE: dZ/dt = A(t)Z + ZB(t)
+            % from t = tau(i) to t = T
+            sylv_ode = @(t, Z_vec) sylvester_rhs(t, Z_vec, A_func, B_func, n);
+            
+            % ODE solver options for high accuracy
+            opts = odeset('RelTol', 1e-9, 'AbsTol', 1e-12);
+            
+            % Solve ODE (Z0 must be vectorized for ode45)
             [~, Z_sol] = ode45(sylv_ode, [tau(i), T], Z0(:), opts);
             
-            % Extract final value Z(T) and assign to column
+            % Extract final value and reshape back to n x n
             Z_final = reshape(Z_sol(end, :), n, n);
+            
+            % Store vectorized result in appropriate column of M_i
             col_idx = (k-1)*n + j;
             M_i(:, col_idx) = Z_final(:);
         end
     end
     
-    % Accumulate weighted contribution to Gramian
+    % Accumulate contribution to Gramian: W += w_i * M_i * M_i^T
     W = W + w(i) * (M_i * M_i');
+    
+    % Progress indicator for large computations
+    if mod(i, max(1, floor(N/10))) == 0
+        fprintf('Progress: %d/%d nodes completed\n', i, N);
+    end
 end
 
-fprintf('Gramian computation completed successfully!\n');
+fprintf('Gramian computation completed successfully\n');
+
 end
 
-function dZ_vec = sylvester_rhs(t, Z_vec, A_func, B_func)
-%SYLVESTER_RHS Right-hand side for Sylvester ODE dZ/dt = A(t)*Z + Z*B(t)
-n = round(sqrt(length(Z_vec)));
+function dZ_vec = sylvester_rhs(t, Z_vec, A_func, B_func, n)
+% Right-hand side function for Sylvester ODE: dZ/dt = A(t)Z + ZB(t)
+% 
+% INPUTS:
+%   t      - Current time
+%   Z_vec  - Vectorized Z matrix (n^2 x 1)
+%   A_func - Function handle for A(t)
+%   B_func - Function handle for B(t) 
+%   n      - Matrix dimension
+%
+% OUTPUT:
+%   dZ_vec - Vectorized derivative dZ/dt
+
+% Reshape vectorized Z back to matrix form
 Z = reshape(Z_vec, n, n);
-dZ = A_func(t) * Z + Z * B_func(t);
+
+% Compute A(t) and B(t) at current time
+At = A_func(t);
+Bt = B_func(t);
+
+% Sylvester equation: dZ/dt = A(t)*Z + Z*B(t)
+dZ = At * Z + Z * Bt;
+
+% Vectorize result
 dZ_vec = dZ(:);
+
 end
 
 function w = simpson_weights(N, T)
-%SIMPSON_WEIGHTS Composite Simpson quadrature weights
-% N must be odd for composite Simpson rule
+% SIMPSON_WEIGHTS Composite Simpson quadrature weights
+%
+% INPUTS:
+%   N - Number of nodes (must be odd)
+%   T - Integration interval length [0, T]
+%
+% OUTPUT:
+%   w - Vector of quadrature weights (1 x N)
+
 if mod(N, 2) == 0
     error('N must be odd for composite Simpson rule');
 end
 
+% Step size
 h = T / (N - 1);
-w = ones(1, N);
+
+% Initialize weights
+w = zeros(1, N);
 
 % Simpson's rule weights: 1, 4, 2, 4, 2, ..., 4, 1
-w(2:2:N-1) = 4;  % Odd indices (except first and last)
-w(3:2:N-2) = 2;  % Even indices (except first and last)
-w = w * h / 3;
+w(1) = h/3;        % First point
+w(N) = h/3;        % Last point
+
+for i = 2:N-1
+    if mod(i-1, 2) == 0  % Even index (middle of interval)
+        w(i) = 4*h/3;
+    else                 % Odd index
+        w(i) = 2*h/3;
+    end
+end
+
 end
