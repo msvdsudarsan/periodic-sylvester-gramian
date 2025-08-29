@@ -1,230 +1,192 @@
-function [A_func, B_func, K_func] = generate_random_periodic_system(n_A, n_B, m, T, varargin)
-%GENERATE_RANDOM_PERIODIC_SYSTEM Generate random periodic system matrices
+function [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T)
+% GENERATE_RANDOM_PERIODIC_SYSTEM Generate random periodic system matrices
 %
-% [A_func, B_func, K_func] = generate_random_periodic_system(n_A, n_B, m, T)
+% This function generates random periodic matrices A(t), B(t), K(t) for
+% testing the block Gramian computation algorithm. The matrices are 
+% constructed to be smooth, periodic, and ensure numerical stability.
 %
-% Generates random periodic matrices for testing the Gramian computation:
-%   A(t): n_A × n_A periodic matrix
-%   B(t): n_B × n_B periodic matrix  
-%   K(t): n_A × m periodic matrix (assuming n_A = n_B for Sylvester systems)
+% SYNTAX:
+%   [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T)
 %
-% Inputs:
-%   n_A    - dimension of A matrix
-%   n_B    - dimension of B matrix (typically n_A = n_B for Sylvester systems)
-%   m      - number of control inputs
-%   T      - period
+% INPUTS:
+%   n - State dimension
+%   m - Input dimension  
+%   T - Period length
 %
-% Optional parameters (name-value pairs):
-%   'Seed'          - random seed for reproducibility (default: random)
-%   'MaxEigenvalue' - maximum eigenvalue magnitude for stability (default: 2)
-%   'Frequencies'   - fundamental frequencies to include (default: [1, 2, 3])
-%   'Amplitudes'    - relative amplitudes for periodic terms (default: [0.3, 0.1, 0.05])
-%   'Controllable'  - ensure system is controllable (default: true)
+% OUTPUTS:
+%   A_func - Function handle for A(t) matrix (n x n)
+%   B_func - Function handle for B(t) matrix (n x n)
+%   K_func - Function handle for K(t) matrix (n x m)
 %
-% Outputs:
-%   A_func - function handle A(t) returning n_A × n_A matrix
-%   B_func - function handle B(t) returning n_B × n_B matrix
-%   K_func - function handle K(t) returning n_A × m matrix
+% DESIGN PRINCIPLES:
+%   - A(t) is constructed to be stable on average
+%   - B(t) has controlled spectral properties
+%   - K(t) ensures controllability for most t
+%   - All matrices are smooth and T-periodic
+%
+% Author: M. S. V. D. Sudarsan
+% Email: msvdsudarsan@gmail.com
 
-%% Input validation and default parameters
-if nargin < 4
-    error('At least 4 input arguments required: n_A, n_B, m, T');
+% Input validation
+if nargin < 3
+    error('Three inputs required: n, m, T');
 end
 
-if n_A ~= n_B
-    warning('For Sylvester systems, typically n_A = n_B. Proceeding with n_A = %d, n_B = %d', n_A, n_B);
+if n < 1 || m < 1 || T <= 0
+    error('Dimensions must be positive and T > 0');
 end
 
-% Parse optional arguments
-p = inputParser;
-addParameter(p, 'Seed', [], @(x) isempty(x) || (isscalar(x) && x >= 0));
-addParameter(p, 'MaxEigenvalue', 2, @(x) isscalar(x) && x > 0);
-addParameter(p, 'Frequencies', [1, 2, 3], @(x) isvector(x) && all(x > 0));
-addParameter(p, 'Amplitudes', [0.3, 0.1, 0.05], @(x) isvector(x) && all(x >= 0));
-addParameter(p, 'Controllable', true, @islogical);
-parse(p, varargin{:});
+fprintf('Generating random periodic system: n=%d, m=%d, T=%.2f\n', n, m, T);
 
-seed = p.Results.Seed;
-max_eigenvalue = p.Results.MaxEigenvalue;
-frequencies = p.Results.Frequencies;
-amplitudes = p.Results.Amplitudes;
-ensure_controllable = p.Results.Controllable;
+%% Generate A(t) matrix
+% A(t) = A0 + A1*cos(2πt/T) + A2*sin(2πt/T) + A3*cos(4πt/T) + A4*sin(4πt/T)
 
-% Set random seed if provided
-if ~isempty(seed)
-    rng(seed);
-    fprintf('Random seed set to %d\n', seed);
-end
+% Base matrix A0 - make it stable
+A0 = generate_stable_matrix(n);
 
-% Ensure frequencies and amplitudes have same length
-if length(amplitudes) < length(frequencies)
-    amplitudes = [amplitudes, 0.05 * ones(1, length(frequencies) - length(amplitudes))];
-elseif length(amplitudes) > length(frequencies)
-    amplitudes = amplitudes(1:length(frequencies));
-end
+% Perturbation matrices with controlled magnitudes
+perturbation_scale = 0.1;  % Small perturbations to maintain stability
+A1 = perturbation_scale * randn(n, n);
+A2 = perturbation_scale * randn(n, n);
+A3 = perturbation_scale * 0.5 * randn(n, n);  % Smaller higher harmonics
+A4 = perturbation_scale * 0.5 * randn(n, n);
 
-fprintf('Generating random periodic system:\n');
-fprintf('• A(t): %d×%d, B(t): %d×%d, K(t): %d×%d\n', n_A, n_A, n_B, n_B, n_A, m);
-fprintf('• Period T = %.3f\n', T);
-fprintf('• Frequencies: %s\n', mat2str(frequencies));
-fprintf('• Amplitudes: %s\n', mat2str(amplitudes, 3));
+% Make perturbations have zero trace to preserve stability better
+A1 = A1 - (trace(A1)/n) * eye(n);
+A2 = A2 - (trace(A2)/n) * eye(n);
+A3 = A3 - (trace(A3)/n) * eye(n);
+A4 = A4 - (trace(A4)/n) * eye(n);
 
-%% Generate base matrices
-% A matrix: start with stable base matrix
-A_base = generate_stable_matrix(n_A, max_eigenvalue);
+% A(t) function handle
+A_func = @(t) A0 + A1*cos(2*pi*t/T) + A2*sin(2*pi*t/T) + ...
+              A3*cos(4*pi*t/T) + A4*sin(4*pi*t/T);
 
-% B matrix: start with stable base matrix  
-B_base = generate_stable_matrix(n_B, max_eigenvalue);
+%% Generate B(t) matrix
+% B(t) = B0 + B1*cos(2πt/T) + B2*sin(2πt/T)
 
-% K matrix: random base with controlled norm
-K_base = randn(n_A, m);
-K_base = K_base / norm(K_base, 'fro') * sqrt(n_A * m); % Normalize
+% Base matrix B0
+B0 = 0.5 * randn(n, n);
 
-%% Generate periodic components
-% For A(t)
-A_periodic_terms = cell(length(frequencies), 1);
-for i = 1:length(frequencies)
-    % Random symmetric matrix for each frequency
-    A_rand = randn(n_A, n_A);
-    A_sym = (A_rand + A_rand') / 2; % Make symmetric
-    A_sym = A_sym / norm(A_sym, 'fro') * amplitudes(i) * max_eigenvalue;
-    A_periodic_terms{i} = A_sym;
-end
+% Perturbation matrices
+B_perturbation_scale = 0.3;
+B1 = B_perturbation_scale * randn(n, n);
+B2 = B_perturbation_scale * randn(n, n);
 
-% For B(t)
-B_periodic_terms = cell(length(frequencies), 1);
-for i = 1:length(frequencies)
-    B_rand = randn(n_B, n_B);
-    B_sym = (B_rand + B_rand') / 2;
-    B_sym = B_sym / norm(B_sym, 'fro') * amplitudes(i) * max_eigenvalue;
-    B_periodic_terms{i} = B_sym;
-end
+% B(t) function handle
+B_func = @(t) B0 + B1*cos(2*pi*t/T) + B2*sin(2*pi*t/T);
 
-% For K(t)
-K_periodic_terms = cell(length(frequencies), 1);
-for i = 1:length(frequencies)
-    K_rand = randn(n_A, m);
-    K_rand = K_rand / norm(K_rand, 'fro') * amplitudes(i) * sqrt(n_A * m);
-    K_periodic_terms{i} = K_rand;
-end
+%% Generate K(t) matrix
+% K(t) = K0 + K1*cos(2πt/T) + K2*sin(2πt/T) + K3*cos(4πt/T)
 
-%% Construct function handles
-% Fundamental frequency
-omega = 2*pi/T;
+% Base matrix K0 - ensure it has full column rank
+K0 = generate_full_rank_matrix(n, m);
 
-% A(t) function
-A_func = @(t) compute_A(t, A_base, A_periodic_terms, frequencies, omega);
+% Perturbation matrices
+K_perturbation_scale = 0.2;
+K1 = K_perturbation_scale * randn(n, m);
+K2 = K_perturbation_scale * randn(n, m);
+K3 = K_perturbation_scale * 0.5 * randn(n, m);
 
-% B(t) function  
-B_func = @(t) compute_B(t, B_base, B_periodic_terms, frequencies, omega);
+% K(t) function handle
+K_func = @(t) K0 + K1*cos(2*pi*t/T) + K2*sin(2*pi*t/T) + K3*cos(4*pi*t/T);
 
-% K(t) function
-K_func = @(t) compute_K(t, K_base, K_periodic_terms, frequencies, omega, ensure_controllable);
+%% Verify periodicity
+fprintf('Verifying system properties...\n');
 
-%% Verification
-fprintf('System generation completed.\n');
-
-% Test function handles
-try
-    A_test = A_func(0);
-    B_test = B_func(0);
-    K_test = K_func(0);
-    
-    fprintf('✓ Function handles created successfully\n');
-    fprintf('• A(0): %d×%d, eigenvalues in [%.3f, %.3f]\n', ...
-            size(A_test,1), size(A_test,2), min(real(eig(A_test))), max(real(eig(A_test))));
-    fprintf('• B(0): %d×%d, eigenvalues in [%.3f, %.3f]\n', ...
-            size(B_test,1), size(B_test,2), min(real(eig(B_test))), max(real(eig(B_test))));
-    fprintf('• K(0): %d×%d, norm = %.3f\n', ...
-            size(K_test,1), size(K_test,2), norm(K_test,'fro'));
-            
-catch ME
-    error('Error in generated function handles: %s', ME.message);
-end
-
-% Test periodicity
-t1 = rand() * T;
-t2 = t1 + T;
-A_error = norm(A_func(t1) - A_func(t2), 'fro');
-B_error = norm(B_func(t1) - B_func(t2), 'fro');
-K_error = norm(K_func(t1) - K_func(t2), 'fro');
+% Check periodicity
+A_error = norm(A_func(0) - A_func(T), 'fro');
+B_error = norm(B_func(0) - B_func(T), 'fro');
+K_error = norm(K_func(0) - K_func(T), 'fro');
 
 if max([A_error, B_error, K_error]) < 1e-12
-    fprintf('✓ Periodicity verified (error < 1e-12)\n');
+    fprintf('✓ System is periodic (max error: %.2e)\n', max([A_error, B_error, K_error]));
 else
-    warning('Periodicity check failed: max error = %.2e', max([A_error, B_error, K_error]));
+    fprintf('⚠ Periodicity check failed (max error: %.2e)\n', max([A_error, B_error, K_error]));
 end
 
+% Check stability of A(t) on average
+t_sample = linspace(0, T, 100);
+max_real_part = -inf;
+for i = 1:length(t_sample)
+    eigs_A = eig(A_func(t_sample(i)));
+    max_real_part = max(max_real_part, max(real(eigs_A)));
 end
 
-%% Helper functions
-function A = generate_stable_matrix(n, max_eigenvalue)
-%GENERATE_STABLE_MATRIX Generate a stable matrix with controlled eigenvalues
-
-if n == 1
-    A = -0.1 - rand() * 0.5; % Stable scalar
-    return;
+if max_real_part < 0
+    fprintf('✓ A(t) is stable (max Re(λ) = %.3f)\n', max_real_part);
+elseif max_real_part < 0.5
+    fprintf('○ A(t) is marginally stable (max Re(λ) = %.3f)\n', max_real_part);
+else
+    fprintf('⚠ A(t) may be unstable (max Re(λ) = %.3f)\n', max_real_part);
 end
 
-% Generate random eigenvalues with negative real parts for stability
-real_parts = -rand(n, 1) * max_eigenvalue; % Negative real parts
-imag_parts = (rand(n, 1) - 0.5) * max_eigenvalue; % Small imaginary parts
-
-% Ensure complex eigenvalues come in conjugate pairs
-if mod(n, 2) == 1
-    imag_parts(end) = 0; % Last eigenvalue is real
+% Check controllability at t=0
+K0_test = K_func(0);
+rank_K0 = rank(K0_test);
+if rank_K0 == m
+    fprintf('✓ K(0) has full column rank (%d)\n', rank_K0);
+else
+    fprintf('⚠ K(0) is rank deficient (rank = %d, expected %d)\n', rank_K0, m);
 end
 
-for i = 2:2:n-1
-    imag_parts(i) = -imag_parts(i-1); % Conjugate pair
+fprintf('Random periodic system generated successfully.\n');
+
 end
 
-eigenvalues = real_parts + 1i * imag_parts;
+function A_stable = generate_stable_matrix(n)
+% Generate a stable matrix (all eigenvalues have negative real parts)
 
-% Generate random orthogonal matrix
+% Method: Generate random matrix and ensure stability
+max_attempts = 10;
+attempt = 1;
+
+while attempt <= max_attempts
+    % Generate random matrix
+    A_stable = randn(n, n);
+    
+    % Make it more likely to be stable
+    A_stable = A_stable - (max(real(eig(A_stable))) + 0.5) * eye(n);
+    
+    % Check stability
+    if max(real(eig(A_stable))) < -0.1
+        return;
+    end
+    
+    attempt = attempt + 1;
+end
+
+% Fallback: construct explicitly stable matrix
+fprintf('  Using fallback stable matrix construction...\n');
+A_stable = -eye(n) + 0.1 * randn(n, n);
+
+end
+
+function K_full = generate_full_rank_matrix(n, m)
+% Generate an n x m matrix with full column rank
+
+if m > n
+    error('Cannot generate full rank matrix with m > n');
+end
+
+% Generate using QR decomposition for guaranteed full rank
 [Q, ~] = qr(randn(n, n));
+R_small = triu(randn(m, m));
 
-% Construct matrix A = Q * diag(eigenvalues) * Q'
-A = Q * diag(eigenvalues) * Q';
-A = real(A); % Should be real for real eigenvalue problems
-end
-
-function A_t = compute_A(t, A_base, periodic_terms, frequencies, omega)
-%COMPUTE_A Compute A(t) with periodic components
-A_t = A_base;
-
-for i = 1:length(frequencies)
-    freq = frequencies(i);
-    A_t = A_t + periodic_terms{i} * cos(freq * omega * t);
-end
-end
-
-function B_t = compute_B(t, B_base, periodic_terms, frequencies, omega)
-%COMPUTE_B Compute B(t) with periodic components
-B_t = B_base;
-
-for i = 1:length(frequencies)
-    freq = frequencies(i);
-    B_t = B_t + periodic_terms{i} * sin(freq * omega * t);
-end
-end
-
-function K_t = compute_K(t, K_base, periodic_terms, frequencies, omega, ensure_controllable)
-%COMPUTE_K Compute K(t) with periodic components
-K_t = K_base;
-
-for i = 1:length(frequencies)
-    freq = frequencies(i);
-    % Mix of sin and cos for K(t)
-    K_t = K_t + periodic_terms{i} * (cos(freq * omega * t) + 0.5 * sin(freq * omega * t));
-end
-
-% Ensure K(t) has sufficient magnitude for controllability
-if ensure_controllable
-    min_norm = 0.1;
-    current_norm = norm(K_t, 'fro');
-    if current_norm < min_norm
-        K_t = K_t * (min_norm / current_norm);
+% Ensure R has non-zero diagonal (full rank)
+for i = 1:m
+    if abs(R_small(i, i)) < 0.1
+        R_small(i, i) = sign(R_small(i, i)) * (0.5 + rand());
     end
 end
+
+% Construct full rank matrix
+K_full = Q(:, 1:m) * R_small;
+
+% Verify full rank
+if rank(K_full) < m
+    fprintf('⚠ Fallback: Using orthogonal columns for K matrix\n');
+    [Q, ~] = qr(randn(n, m), 0);
+    K_full = Q;
+end
+
 end
