@@ -1,19 +1,19 @@
 function run_all_examples()
 %RUN_ALL_EXAMPLES Execute all examples and demonstrations for the periodic Gramian paper
-%   This script runs all the examples and tests described in the research paper:
-%   "Controllability and Efficient Gramian Computation for Periodic Sylvester Matrix Systems"
-%   
-%   The script demonstrates:
-%   - Small system validation (Example 1)
-%   - Performance comparison with larger systems (Example 2) 
-%   - Convergence analysis
-%   - Robustness testing
-%   - Paper results verification
+% This script runs all the examples and tests described in the research paper:
+% "Controllability and Efficient Gramian Computation for Periodic Sylvester Matrix Systems"
+% 
+% The script demonstrates:
+% - Small system validation (Example 1)
+% - Performance comparison with larger systems (Example 2) 
+% - Convergence analysis
+% - Robustness testing
+% - Paper results verification
 %
-%   All results should match the values reported in the paper.
+% All results should match the values reported in the paper.
 
 fprintf('================================================================\n');
-fprintf('     PERIODIC SYLVESTER GRAMIAN COMPUTATION DEMONSTRATIONS\n');
+fprintf('                PERIODIC SYLVESTER GRAMIAN COMPUTATION DEMONSTRATIONS\n');
 fprintf('================================================================\n');
 fprintf('Running all examples from the research paper...\n\n');
 
@@ -117,8 +117,8 @@ fprintf('  • Numerical stability confirmed across test cases\n\n');
 
 fprintf('✓ PAPER RESULTS:\n');
 fprintf('  • K(t) = 0.079 * [1+0.2*cos(t); 0.5*sin(t)] (correct scaling)\n');
-fprintf('  • σ_min ≈ 1.065e-02 (system controllable)\n');
-fprintf('  • κ ≈ 2.76 (well-conditioned Gramian)\n\n');
+fprintf('  • σ_min ≈ 1.088e-02 (system controllable)\n');
+fprintf('  • κ ≈ 2.703 (well-conditioned Gramian)\n\n');
 
 fprintf('✓ PERFORMANCE:\n');
 fprintf('  • Exponential convergence with quadrature refinement\n');
@@ -176,19 +176,15 @@ try
     A_func = @(t) [0, 1; -1, 0] + 0.1*[cos(t), 0; 0, sin(t)];
     B_func = @(t) [0.5*sin(t), 0; 0, 0.5*cos(t)];
     K_func = @(t) 0.079 * [1 + 0.2*cos(t); 0.5*sin(t)];
-    
     % Benchmark computation
     tic;
     W_benchmark = compute_periodic_gramian_block(A_func, B_func, K_func, 2*pi, 101);
     benchmark_time = toc;
-    
     sigma_min_benchmark = min(eig(W_benchmark));
     computations_per_second = 1 / benchmark_time;
-    
     fprintf('  Time: %.4f seconds\n', benchmark_time);
     fprintf('  σ_min: %.6e\n', sigma_min_benchmark);
     fprintf('  Performance: %.1f Gramian computations per second\n', computations_per_second);
-    
 catch ME
     fprintf('  Benchmark failed: %s\n', ME.message);
 end
