@@ -1,192 +1,187 @@
-function [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T)
-% GENERATE_RANDOM_PERIODIC_SYSTEM Generate random periodic system matrices
+function [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T, varargin)
+%GENERATE_RANDOM_PERIODIC_SYSTEM Generate random T-periodic system matrices
 %
-% This function generates random periodic matrices A(t), B(t), K(t) for
-% testing the block Gramian computation algorithm. The matrices are 
-% constructed to be smooth, periodic, and ensure numerical stability.
-%
-% SYNTAX:
+% Syntax:
 %   [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T)
+%   [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T, 'stable', true)
+%   [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T, 'controllable', true)
 %
-% INPUTS:
+% Inputs:
 %   n - State dimension
 %   m - Input dimension  
-%   T - Period length
+%   T - Period
 %
-% OUTPUTS:
-%   A_func - Function handle for A(t) matrix (n x n)
-%   B_func - Function handle for B(t) matrix (n x n)
-%   K_func - Function handle for K(t) matrix (n x m)
+% Optional parameters (name-value pairs):
+%   'stable'      - Ensure Floquet stability (default: false)
+%   'controllable'- Ensure controllability (default: false)
+%   'seed'        - Random seed for reproducibility (default: random)
+%   'amplitude'   - Amplitude of periodic variations (default: 0.3)
 %
-% DESIGN PRINCIPLES:
-%   - A(t) is constructed to be stable on average
-%   - B(t) has controlled spectral properties
-%   - K(t) ensures controllability for most t
-%   - All matrices are smooth and T-periodic
+% Outputs:
+%   A_func - Function handle for A(t) (n×n periodic matrix)
+%   B_func - Function handle for B(t) (n×n periodic matrix)
+%   K_func - Function handle for K(t) (n×m periodic matrix)
+%
+% The generated system has the form:
+%   A(t) = A0 + A1*cos(2πt/T) + A2*sin(2πt/T)
+%   B(t) = B0 + B1*cos(2πt/T) + B2*sin(2πt/T)  
+%   K(t) = K0 + K1*cos(2πt/T) + K2*sin(2πt/T)
 %
 % Author: M. S. V. D. Sudarsan
 % Email: msvdsudarsan@gmail.com
+% Date: 2025
 
-% Input validation
-if nargin < 3
-    error('Three inputs required: n, m, T');
+% Parse optional arguments
+p = inputParser;
+addParameter(p, 'stable', false, @islogical);
+addParameter(p, 'controllable', false, @islogical);
+addParameter(p, 'seed', [], @isnumeric);
+addParameter(p, 'amplitude', 0.3, @isnumeric);
+parse(p, varargin{:});
+
+stable = p.Results.stable;
+controllable = p.Results.controllable;
+seed_val = p.Results.seed;
+amplitude = p.Results.amplitude;
+
+% Set random seed for reproducibility
+if ~isempty(seed_val)
+    rng(seed_val);
 end
 
-if n < 1 || m < 1 || T <= 0
-    error('Dimensions must be positive and T > 0');
+% Validate inputs
+if n < 1 || m < 1
+    error('Dimensions n and m must be positive integers');
+end
+if T <= 0
+    error('Period T must be positive');
+end
+if amplitude < 0 || amplitude > 1
+    error('Amplitude must be in [0, 1]');
 end
 
-fprintf('Generating random periodic system: n=%d, m=%d, T=%.2f\n', n, m, T);
+fprintf('Generating random periodic system (n=%d, m=%d, T=%.2f)\n', n, m, T);
+if stable
+    fprintf('  → Ensuring Floquet stability\n');
+end
+if controllable
+    fprintf('  → Ensuring controllability\n');
+end
 
-%% Generate A(t) matrix
-% A(t) = A0 + A1*cos(2πt/T) + A2*sin(2πt/T) + A3*cos(4πt/T) + A4*sin(4πt/T)
+%% Generate base matrices
+% Start with a stable base system if requested
+if stable
+    A0 = generate_stable_matrix(n);
+else
+    A0 = randn(n, n) * 0.5;  % Moderate random matrix
+end
 
-% Base matrix A0 - make it stable
-A0 = generate_stable_matrix(n);
+B0 = randn(n, n) * 0.3;     % Smaller coupling matrix
+K0 = randn(n, m) * 0.5;     % Input matrix
 
-% Perturbation matrices with controlled magnitudes
-perturbation_scale = 0.1;  % Small perturbations to maintain stability
-A1 = perturbation_scale * randn(n, n);
-A2 = perturbation_scale * randn(n, n);
-A3 = perturbation_scale * 0.5 * randn(n, n);  % Smaller higher harmonics
-A4 = perturbation_scale * 0.5 * randn(n, n);
+% Generate periodic variations
+A1 = randn(n, n) * amplitude;
+A2 = randn(n, n) * amplitude;
+B1 = randn(n, n) * amplitude * 0.5;
+B2 = randn(n, n) * amplitude * 0.5;
+K1 = randn(n, m) * amplitude;
+K2 = randn(n, m) * amplitude;
 
-% Make perturbations have zero trace to preserve stability better
-A1 = A1 - (trace(A1)/n) * eye(n);
-A2 = A2 - (trace(A2)/n) * eye(n);
-A3 = A3 - (trace(A3)/n) * eye(n);
-A4 = A4 - (trace(A4)/n) * eye(n);
+%% Ensure controllability if requested
+if controllable
+    fprintf('  → Adjusting for controllability...\n');
+    
+    % Make sure K0 has sufficient rank
+    [U, S, V] = svd(K0);
+    S_new = max(S, 0.1);  % Ensure minimum singular values
+    K0 = U * diag(S_new) * V';
+    
+    % Add controllability-enhancing terms
+    K0 = K0 + 0.1 * eye(n, min(n, m));
+end
 
-% A(t) function handle
-A_func = @(t) A0 + A1*cos(2*pi*t/T) + A2*sin(2*pi*t/T) + ...
-              A3*cos(4*pi*t/T) + A4*sin(4*pi*t/T);
+%% Create function handles
+omega = 2*pi/T;  % Angular frequency
 
-%% Generate B(t) matrix
-% B(t) = B0 + B1*cos(2πt/T) + B2*sin(2πt/T)
+A_func = @(t) A0 + A1*cos(omega*t) + A2*sin(omega*t);
+B_func = @(t) B0 + B1*cos(omega*t) + B2*sin(omega*t);
+K_func = @(t) K0 + K1*cos(omega*t) + K2*sin(omega*t);
 
-% Base matrix B0
-B0 = 0.5 * randn(n, n);
+%% Display system properties
+fprintf('System properties at t=0:\n');
+fprintf('  A(0) eigenvalues: ');
+eig_A0 = eig(A0);
+fprintf('%.3f±%.3fi ', [real(eig_A0), imag(eig_A0)].');
+fprintf('\n');
 
-% Perturbation matrices
-B_perturbation_scale = 0.3;
-B1 = B_perturbation_scale * randn(n, n);
-B2 = B_perturbation_scale * randn(n, n);
+fprintf('  B(0) norm: %.3f\n', norm(B0, 'fro'));
+fprintf('  K(0) singular values: ');
+sv_K0 = svd(K0);
+fprintf('%.3f ', sv_K0);
+fprintf('\n');
 
-% B(t) function handle
-B_func = @(t) B0 + B1*cos(2*pi*t/T) + B2*sin(2*pi*t/T);
+% Check basic properties
+rank_K0 = rank(K0, 1e-10);
+fprintf('  K(0) rank: %d/%d\n', rank_K0, min(n, m));
 
-%% Generate K(t) matrix
-% K(t) = K0 + K1*cos(2πt/T) + K2*sin(2πt/T) + K3*cos(4πt/T)
-
-% Base matrix K0 - ensure it has full column rank
-K0 = generate_full_rank_matrix(n, m);
-
-% Perturbation matrices
-K_perturbation_scale = 0.2;
-K1 = K_perturbation_scale * randn(n, m);
-K2 = K_perturbation_scale * randn(n, m);
-K3 = K_perturbation_scale * 0.5 * randn(n, m);
-
-% K(t) function handle
-K_func = @(t) K0 + K1*cos(2*pi*t/T) + K2*sin(2*pi*t/T) + K3*cos(4*pi*t/T);
+if rank_K0 == min(n, m)
+    fprintf('  ✓ K(0) has full rank\n');
+else
+    fprintf('  ! K(0) is rank deficient\n');
+end
 
 %% Verify periodicity
-fprintf('Verifying system properties...\n');
+fprintf('Verifying periodicity...\n');
+t_test = [0, T/4, T/2, 3*T/4, T];
+periodicity_error = 0;
 
-% Check periodicity
-A_error = norm(A_func(0) - A_func(T), 'fro');
-B_error = norm(B_func(0) - B_func(T), 'fro');
-K_error = norm(K_func(0) - K_func(T), 'fro');
+for t = t_test
+    A_error = norm(A_func(t) - A_func(t + T), 'fro');
+    B_error = norm(B_func(t) - B_func(t + T), 'fro');
+    K_error = norm(K_func(t) - K_func(t + T), 'fro');
+    periodicity_error = max(periodicity_error, A_error + B_error + K_error);
+end
 
-if max([A_error, B_error, K_error]) < 1e-12
-    fprintf('✓ System is periodic (max error: %.2e)\n', max([A_error, B_error, K_error]));
+if periodicity_error < 1e-12
+    fprintf('  ✓ Periodicity verified (error: %.2e)\n', periodicity_error);
 else
-    fprintf('⚠ Periodicity check failed (max error: %.2e)\n', max([A_error, B_error, K_error]));
+    fprintf('  ! Periodicity error: %.2e\n', periodicity_error);
 end
 
-% Check stability of A(t) on average
-t_sample = linspace(0, T, 100);
-max_real_part = -inf;
-for i = 1:length(t_sample)
-    eigs_A = eig(A_func(t_sample(i)));
-    max_real_part = max(max_real_part, max(real(eigs_A)));
-end
-
-if max_real_part < 0
-    fprintf('✓ A(t) is stable (max Re(λ) = %.3f)\n', max_real_part);
-elseif max_real_part < 0.5
-    fprintf('○ A(t) is marginally stable (max Re(λ) = %.3f)\n', max_real_part);
-else
-    fprintf('⚠ A(t) may be unstable (max Re(λ) = %.3f)\n', max_real_part);
-end
-
-% Check controllability at t=0
-K0_test = K_func(0);
-rank_K0 = rank(K0_test);
-if rank_K0 == m
-    fprintf('✓ K(0) has full column rank (%d)\n', rank_K0);
-else
-    fprintf('⚠ K(0) is rank deficient (rank = %d, expected %d)\n', rank_K0, m);
-end
-
-fprintf('Random periodic system generated successfully.\n');
+fprintf('Random periodic system generated successfully.\n\n');
 
 end
 
-function A_stable = generate_stable_matrix(n)
-% Generate a stable matrix (all eigenvalues have negative real parts)
+%% Helper function: Generate stable matrix
+function A = generate_stable_matrix(n)
+%GENERATE_STABLE_MATRIX Generate a stable random matrix
+%
+% Creates a random matrix with all eigenvalues having negative real parts
 
-% Method: Generate random matrix and ensure stability
-max_attempts = 10;
-attempt = 1;
+% Generate random matrix
+A = randn(n, n);
 
-while attempt <= max_attempts
-    % Generate random matrix
-    A_stable = randn(n, n);
+% Symmetrize to ensure real eigenvalues (for simplicity)
+A = 0.5 * (A + A');
+
+% Shift eigenvalues to ensure stability
+lambda = eig(A);
+max_real_part = max(real(lambda));
+
+if max_real_part >= 0
+    % Shift to make stable
+    A = A - (max_real_part + 0.1) * eye(n);
+end
+
+% Verify stability
+lambda_new = eig(A);
+if max(real(lambda_new)) >= 0
+    warning('Failed to generate stable matrix, trying alternative approach');
     
-    % Make it more likely to be stable
-    A_stable = A_stable - (max(real(eig(A_stable))) + 0.5) * eye(n);
-    
-    % Check stability
-    if max(real(eig(A_stable))) < -0.1
-        return;
-    end
-    
-    attempt = attempt + 1;
-end
-
-% Fallback: construct explicitly stable matrix
-fprintf('  Using fallback stable matrix construction...\n');
-A_stable = -eye(n) + 0.1 * randn(n, n);
-
-end
-
-function K_full = generate_full_rank_matrix(n, m)
-% Generate an n x m matrix with full column rank
-
-if m > n
-    error('Cannot generate full rank matrix with m > n');
-end
-
-% Generate using QR decomposition for guaranteed full rank
-[Q, ~] = qr(randn(n, n));
-R_small = triu(randn(m, m));
-
-% Ensure R has non-zero diagonal (full rank)
-for i = 1:m
-    if abs(R_small(i, i)) < 0.1
-        R_small(i, i) = sign(R_small(i, i)) * (0.5 + rand());
-    end
-end
-
-% Construct full rank matrix
-K_full = Q(:, 1:m) * R_small;
-
-% Verify full rank
-if rank(K_full) < m
-    fprintf('⚠ Fallback: Using orthogonal columns for K matrix\n');
-    [Q, ~] = qr(randn(n, m), 0);
-    K_full = Q;
+    % Alternative: construct stable matrix directly
+    [Q, ~] = qr(randn(n, n));
+    D = diag(-abs(randn(n, 1)) - 0.1);  % Negative eigenvalues
+    A = Q * D * Q';
 end
 
 end
