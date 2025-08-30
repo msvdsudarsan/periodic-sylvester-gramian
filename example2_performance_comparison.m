@@ -15,10 +15,10 @@ fprintf('Comparing block method with direct Kronecker approach\n');
 fprintf('Testing systems with n ∈ {3, 4, 5} and m = 2\n\n');
 
 % Test parameters
-n_values = [3, 4, 5];  % System sizes to test
-m = 2;                 % Number of inputs
-T = 2*pi;              % Period
-N = 41;                % Quadrature nodes (moderate for timing)
+n_values = [3, 4, 5]; % System sizes to test
+m = 2; % Number of inputs
+T = 2*pi; % Period
+N = 41; % Quadrature nodes (moderate for timing)
 
 % Storage for results
 results = struct();
@@ -28,20 +28,18 @@ results.memory_usage = zeros(size(n_values));
 results.sigma_min = zeros(size(n_values));
 results.kappa = zeros(size(n_values));
 
-fprintf('System | Block Time | Memory (MB) | σ_min(W)     | κ(W)        | Status\n');
-fprintf('-------|------------|-------------|--------------|-------------|--------\n');
+fprintf('System | Block Time | Memory (MB) | σ_min(W)      | κ(W)         | Status\n');
+fprintf('-------|------------|-------------|---------------|--------------|--------\n');
 
 for i = 1:length(n_values)
     n = n_values(i);
-    
-    fprintf(' n=%d   |', n);
-    
+    fprintf('  n=%d |', n);
     try
         % Generate random periodic system
         [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T);
         
         % Measure memory usage before computation
-        mem_before = monitor_memory();
+        mem_before = monitor_memory_usage();
         
         % Time the block computation
         tic;
@@ -49,7 +47,7 @@ for i = 1:length(n_values)
         block_time = toc;
         
         % Measure memory after computation
-        mem_after = monitor_memory();
+        mem_after = monitor_memory_usage();
         memory_used = mem_after - mem_before;
         
         % Analyze results
@@ -65,14 +63,17 @@ for i = 1:length(n_values)
         
         % Check controllability
         is_controllable = sigma_min_val > 1e-10;
-        status = char("CTRL" * is_controllable + "N-CTRL" * ~is_controllable);
+        if is_controllable
+            status = 'CTRL';
+        else
+            status = 'N-CTRL';
+        end
         
         fprintf(' %8.3f | %9.1f | %.3e | %9.2e | %s\n', ...
-            block_time, memory_used, sigma_min_val, kappa_val, status);
-        
+                block_time, memory_used, sigma_min_val, kappa_val, status);
     catch ME
         fprintf(' %8s | %9s | %12s | %11s | ERROR\n', 'FAIL', 'N/A', 'N/A', 'N/A');
-        fprintf('       Error: %s\n', ME.message);
+        fprintf('  Error: %s\n', ME.message);
         results.block_times(i) = NaN;
         results.memory_usage(i) = NaN;
         results.sigma_min(i) = NaN;
@@ -95,9 +96,8 @@ if sum(valid_idx) >= 2
     for i = 2:length(n_valid)
         time_ratio = times_valid(i) / times_valid(1);
         theoretical_ratio = (n_valid(i)/n_valid(1))^3;
-        
         fprintf('  n=%d vs n=%d: %.2fx speedup (theoretical: %.2fx)\n', ...
-            n_valid(1), n_valid(i), time_ratio, theoretical_ratio);
+                n_valid(1), n_valid(i), time_ratio, theoretical_ratio);
     end
     
     % Fit power law: time = c * n^p
@@ -106,9 +106,7 @@ if sum(valid_idx) >= 2
         log_t = log(times_valid);
         p = polyfit(log_n, log_t, 1);
         power = p(1);
-        
         fprintf('\nPower law fit: time ∝ n^%.2f (theoretical: n^3.00)\n', power);
-        
         if abs(power - 3) < 0.5
             fprintf('✓ Excellent agreement with O(n^3) theory\n');
         elseif abs(power - 3) < 1.0
@@ -131,11 +129,10 @@ if sum(valid_mem_idx) >= 2
     
     fprintf('Memory usage scaling:\n');
     for i = 1:length(n_mem)
-        direct_memory_est = (n_mem(i)^4 * 8) / (1024^2);  % Estimate for direct method
+        direct_memory_est = (n_mem(i)^4 * 8) / (1024^2); % Estimate for direct method
         memory_ratio = direct_memory_est / mem_valid(i);
-        
-        fprintf('  n=%d: Block=%.1f MB, Direct≈%.1f MB, Ratio=%.1f:1\n', ...
-            n_mem(i), mem_valid(i), direct_memory_est, memory_ratio);
+        fprintf('  n=%d: Block=%.1f MB, Direct~%.1f MB, Ratio=%.1f:1\n', ...
+                n_mem(i), mem_valid(i), direct_memory_est, memory_ratio);
     end
 end
 
@@ -148,7 +145,6 @@ fprintf('Testing quadrature accuracy (n=%d system):\n', n_values(1));
 try
     n_test = n_values(1);
     [A_test, B_test, K_test] = generate_random_periodic_system(n_test, m, T);
-    
     N_test_values = [21, 41, 61];
     sigma_test_values = zeros(size(N_test_values));
     
@@ -157,17 +153,16 @@ try
         sigma_test_values(j) = min(svd(W_test));
     end
     
-    fprintf('N     σ_min(W)      Rel. Change\n');
-    fprintf('----------------------------\n');
+    fprintf('  N     σ_min(W)      Rel. Change\n');
+    fprintf('  ---   ----------    -----------\n');
     for j = 1:length(N_test_values)
         if j == 1
-            fprintf('%3d   %.6e   --------\n', N_test_values(j), sigma_test_values(j));
+            fprintf('  %3d   %.6e    --------\n', N_test_values(j), sigma_test_values(j));
         else
             rel_change = abs(sigma_test_values(j) - sigma_test_values(j-1)) / sigma_test_values(j-1);
-            fprintf('%3d   %.6e   %.3e\n', N_test_values(j), sigma_test_values(j), rel_change);
+            fprintf('  %3d   %.6e    %.3e\n', N_test_values(j), sigma_test_values(j), rel_change);
         end
     end
-    
 catch
     fprintf('Accuracy test failed\n');
 end
@@ -179,7 +174,6 @@ fprintf('Block method demonstrates:\n');
 if sum(valid_idx) >= 2
     min_time = min(results.block_times(valid_idx));
     max_time = max(results.block_times(valid_idx));
-    
     fprintf('• Computation time range: %.3f - %.3f seconds\n', min_time, max_time);
     fprintf('• All tested systems are controllable\n');
     fprintf('• Consistent O(n^3) complexity scaling\n');
@@ -190,7 +184,7 @@ if sum(valid_idx) >= 2
     for i = 1:length(n_values)
         if ~isnan(results.block_times(i))
             n = n_values(i);
-            theoretical_speedup = n^3;  % Simplified estimate
+            theoretical_speedup = n^3; % Simplified estimate
             fprintf('  n=%d: ~%.0fx faster\n', n, theoretical_speedup);
         end
     end
@@ -242,8 +236,8 @@ fprintf('\n=== EXAMPLE 2 COMPLETE ===\n');
 end
 
 %% Helper function: Monitor memory usage
-function mem_mb = monitor_memory()
-%MONITOR_MEMORY Simple memory monitoring
+function mem_mb = monitor_memory_usage()
+%MONITOR_MEMORY_USAGE Simple memory monitoring
 %
 % Returns approximate memory usage in MB
 
