@@ -1,334 +1,181 @@
 function convergence_analysis()
-% CONVERGENCE_ANALYSIS Convergence study with quadrature refinement
+%CONVERGENCE_ANALYSIS Analyze convergence with quadrature refinement
 %
-% This function demonstrates the convergence of the minimum singular value
-% with quadrature refinement, as shown in Figure 1 of the paper.
-% Tests various numbers of quadrature nodes to show exponential convergence.
-%
-% EXPECTED BEHAVIOR:
-%   Exponential convergence of |σ_min^(N) - σ_min^(200)| as N increases
-%   Convergence achieved by N ≈ 80 (relative change < 10^-6)
+% Studies convergence of the minimum singular value as the number of
+% quadrature nodes N increases. Uses Example 1 system parameters.
 %
 % Author: M. S. V. D. Sudarsan
 % Email: msvdsudarsan@gmail.com
+% Date: 2025
 
-clear; clc;
-fprintf('\n=== CONVERGENCE ANALYSIS ===\n');
-fprintf('Quadrature refinement study from paper Figure 1\n\n');
+clc;
+fprintf('=== CONVERGENCE ANALYSIS ===\n');
+fprintf('Studying quadrature convergence for Example 1 system\n\n');
 
-%% System Definition (Example 1 from paper)
-% Use the same system as in Example 1 for consistency
+% System parameters (same as Example 1)
+n = 2; m = 1; T = 2*pi;
+
+% System matrices
 A_func = @(t) [0, 1; -1, 0] + 0.1*[cos(t), 0; 0, sin(t)];
 B_func = @(t) [0.5*sin(t), 0; 0, 0.5*cos(t)];
-K_func = @(t) [1 + 0.2*cos(t); 0.5*sin(t)];
-T = 2*pi;
+K_func = @(t) 0.079 * [1 + 0.2*cos(t); 0.5*sin(t)];  % Corrected scaling
 
-fprintf('SYSTEM: Example 1 (n=2, m=1, T=2π)\n');
-fprintf('OBJECTIVE: Study convergence of σ_min with quadrature refinement\n\n');
-
-%% Convergence Study Setup
-% Test range of quadrature nodes (must be odd for Simpson's rule)
+% Define range of quadrature nodes (all odd for Simpson rule)
 N_values = [11, 21, 31, 41, 51, 61, 71, 81, 91, 101, 121, 141, 161, 181, 201];
-N_reference = 201;  % Reference "exact" value
+
+fprintf('Testing N values: ');
+fprintf('%d ', N_values);
+fprintf('\n\n');
 
 % Storage for results
-results = struct();
-results.N_values = N_values;
-results.sigma_min = zeros(size(N_values));
-results.kappa = zeros(size(N_values));
-results.errors = zeros(size(N_values));
-results.computation_times = zeros(size(N_values));
+n_tests = length(N_values);
+sigma_min_values = zeros(n_tests, 1);
+kappa_values = zeros(n_tests, 1);
+computation_times = zeros(n_tests, 1);
 
-fprintf('CONVERGENCE STUDY PARAMETERS:\n');
-fprintf('  N values: [%s]\n', sprintf('%d ', N_values));
-fprintf('  Reference N = %d\n\n', N_reference);
-
-%% Compute Reference Solution
-fprintf('Computing reference solution (N=%d)...\n', N_reference);
+% Compute reference solution with finest grid
+fprintf('Computing reference solution with N = %d...\n', N_values(end));
 tic;
-W_ref = compute_periodic_gramian_block(A_func, B_func, K_func, T, N_reference);
+W_ref = compute_periodic_gramian_block(A_func, B_func, K_func, T, N_values(end));
 ref_time = toc;
+sigma_ref = min(svd(W_ref));
+fprintf('Reference σ_min = %.8e (computed in %.3f seconds)\n\n', sigma_ref, ref_time);
 
-eigenvals_ref = eig(W_ref);
-sigma_min_ref = sqrt(min(real(eigenvals_ref)));
-kappa_ref = max(real(eigenvals_ref)) / min(real(eigenvals_ref));
+% Main convergence loop
+fprintf('N      σ_min(W)        κ(W)          Error         Time(s)\n');
+fprintf('---------------------------------------------------------------\n');
 
-fprintf('  Reference σ_min = %.8e\n', sigma_min_ref);
-fprintf('  Reference κ(W)  = %.8e\n', kappa_ref);
-fprintf('  Computation time: %.3f seconds\n\n', ref_time);
-
-%% Convergence Study Loop
-fprintf('CONVERGENCE STUDY:\n');
-fprintf('==================\n');
-fprintf('%-6s %-15s %-15s %-12s %-12s\n', 'N', 'σ_min', 'Error', 'κ(W)', 'Time(s)');
-fprintf('%-6s %-15s %-15s %-12s %-12s\n', '------', '---------------', '---------------', '------------', '--------');
-
-for i = 1:length(N_values)
+for i = 1:n_tests
     N = N_values(i);
     
-    % Compute Gramian for current N
+    % Compute Gramian
     tic;
-    try
-        W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N);
-        comp_time = toc;
-        
-        % Compute measures
-        eigenvals = eig(W);
-        sigma_min = sqrt(min(real(eigenvals)));
-        kappa = max(real(eigenvals)) / min(real(eigenvals));
-        
-        % Compute error relative to reference
-        error = abs(sigma_min - sigma_min_ref);
-        
-        % Store results
-        results.sigma_min(i) = sigma_min;
-        results.kappa(i) = kappa;
-        results.errors(i) = error;
-        results.computation_times(i) = comp_time;
-        
-        % Display progress
-        fprintf('%-6d %-15.8e %-15.8e %-12.3e %-12.3f\n', ...
-                N, sigma_min, error, kappa, comp_time);
-        
-    catch ME
-        fprintf('%-6d %-15s %-15s %-12s %-12s\n', N, 'FAILED', 'N/A', 'N/A', 'N/A');
-        fprintf('         Error: %s\n', ME.message);
-        
-        results.sigma_min(i) = NaN;
-        results.kappa(i) = NaN;
-        results.errors(i) = NaN;
-        results.computation_times(i) = NaN;
-    end
+    W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N);
+    computation_times(i) = toc;
+    
+    % Analyze
+    sigma_vals = svd(W);
+    sigma_min_values(i) = min(sigma_vals);
+    kappa_values(i) = max(sigma_vals) / min(sigma_vals);
+    
+    % Compute error relative to reference
+    error_val = abs(sigma_min_values(i) - sigma_ref) / sigma_ref;
+    
+    % Display results
+    fprintf('%3d  %.8e  %.6e  %.3e  %.4f\n', ...
+        N, sigma_min_values(i), kappa_values(i), error_val, computation_times(i));
 end
 
-%% Convergence Analysis
-fprintf('\nCONVERGENCE ANALYSIS:\n');
-fprintf('====================\n');
+% Convergence analysis
+fprintf('\n--- CONVERGENCE ANALYSIS ---\n');
 
-% Find valid results
-valid_idx = ~isnan(results.errors);
-valid_N = results.N_values(valid_idx);
-valid_errors = results.errors(valid_idx);
-
-if sum(valid_idx) >= 3
-    % Check for convergence threshold
-    convergence_threshold = 1e-6;
-    converged_idx = find(valid_errors < convergence_threshold, 1, 'first');
+% Check relative changes between consecutive values
+fprintf('\nRelative changes between consecutive N values:\n');
+for i = 2:n_tests
+    rel_change = abs(sigma_min_values(i) - sigma_min_values(i-1)) / sigma_min_values(i-1);
+    fprintf('N=%d → N=%d: %.3e', N_values(i-1), N_values(i), rel_change);
     
-    if ~isempty(converged_idx)
-        convergence_N = valid_N(converged_idx);
-        fprintf('✓ Convergence achieved at N = %d (error < %.0e)\n', ...
-                convergence_N, convergence_threshold);
+    if rel_change < 1e-6
+        fprintf(' ✓ Converged\n');
+    elseif rel_change < 1e-4
+        fprintf(' → Good convergence\n');
     else
-        fprintf('⚠ Convergence threshold not reached in test range\n');
+        fprintf(' - Still converging\n');
     end
-    
-    % Analyze convergence rate
-    if length(valid_N) >= 5
-        % Fit exponential decay: error ≈ C * exp(-α * N)
-        log_errors = log(valid_errors + eps);  % Add eps to avoid log(0)
-        p = polyfit(valid_N, log_errors, 1);
-        convergence_rate = -p(1);
-        
-        fprintf('✓ Estimated convergence rate: α = %.4f\n', convergence_rate);
-        fprintf('  (Exponential decay: error ∝ exp(-%.4f × N))\n', convergence_rate);
-        
-        % Check if convergence is exponential
-        R_squared = calculate_r_squared(log_errors, polyval(p, valid_N));
-        fprintf('✓ Linear fit quality: R² = %.4f\n', R_squared);
-        
-        if R_squared > 0.9
-            fprintf('✓ Exponential convergence confirmed\n');
-        else
-            fprintf('⚠ Convergence may not be purely exponential\n');
-        end
+end
+
+% Find first N where convergence is achieved
+convergence_threshold = 1e-6;
+converged_idx = [];
+for i = 2:n_tests
+    rel_change = abs(sigma_min_values(i) - sigma_min_values(i-1)) / sigma_min_values(i-1);
+    if rel_change < convergence_threshold
+        converged_idx = i-1;
+        break;
     end
-    
-    % Final error level
-    final_error = valid_errors(end);
-    relative_error = final_error / sigma_min_ref * 100;
-    
-    fprintf('✓ Final error (N=%d): %.2e (%.4f%%)\n', ...
-            valid_N(end), final_error, relative_error);
-    
+end
+
+if ~isempty(converged_idx)
+    fprintf('\n✓ Convergence achieved by N = %d\n', N_values(converged_idx));
 else
-    fprintf('⚠ Insufficient valid data for convergence analysis\n');
+    fprintf('\n! Convergence not yet achieved - need more quadrature points\n');
 end
 
-%% Performance Analysis
-fprintf('\nPERFORMANCE ANALYSIS:\n');
-fprintf('====================\n');
-
-valid_times = results.computation_times(valid_idx);
-if length(valid_times) >= 3
-    % Analyze computational cost scaling
-    log_N = log(valid_N);
-    log_times = log(valid_times);
-    p_time = polyfit(log_N, log_times, 1);
-    time_scaling = p_time(1);
+% Asymptotic behavior analysis
+fprintf('\n--- ASYMPTOTIC BEHAVIOR ---\n');
+if n_tests >= 5
+    % Fit exponential decay to errors
+    errors = abs(sigma_min_values - sigma_ref) / sigma_ref;
     
-    fprintf('✓ Computational cost scaling: O(N^%.2f)\n', time_scaling);
-    fprintf('  (Expected: O(N) for quadrature integration)\n');
+    % Remove zeros and very small errors for fitting
+    valid_idx = errors > 1e-15;
+    N_fit = N_values(valid_idx);
+    errors_fit = errors(valid_idx);
     
-    % Time efficiency
-    min_time = min(valid_times);
-    max_time = max(valid_times);
-    fprintf('✓ Time range: %.3f - %.3f seconds\n', min_time, max_time);
+    if length(N_fit) >= 3
+        % Fit log(error) = a + b*N (exponential decay)
+        try
+            p = polyfit(N_fit, log(errors_fit), 1);
+            decay_rate = -p(1);
+            fprintf('Exponential decay rate: %.6f per additional node\n', decay_rate);
+            
+            if decay_rate > 0.01
+                fprintf('✓ Good exponential convergence\n');
+            elseif decay_rate > 0.001
+                fprintf('→ Moderate convergence rate\n');
+            else
+                fprintf('- Slow convergence\n');
+            end
+        catch
+            fprintf('Could not fit exponential decay model\n');
+        end
+    end
 end
 
-%% Generate Convergence Plots
-fprintf('\nGenerating convergence plots...\n');
-generate_convergence_plots(results, sigma_min_ref);
+% Computational efficiency
+fprintf('\n--- COMPUTATIONAL EFFICIENCY ---\n');
+fprintf('Average time per node: %.4f seconds\n', mean(computation_times ./ N_values'));
+fprintf('Time scaling (last/first): %.2fx for %.2fx more nodes\n', ...
+    computation_times(end)/computation_times(1), N_values(end)/N_values(1));
 
-fprintf('\nConvergence analysis completed successfully!\n');
-
-end
-
-function R_squared = calculate_r_squared(y_actual, y_predicted)
-% Calculate R-squared (coefficient of determination)
-SS_res = sum((y_actual - y_predicted).^2);
-SS_tot = sum((y_actual - mean(y_actual)).^2);
-R_squared = 1 - SS_res/SS_tot;
-end
-
-function generate_convergence_plots(results, sigma_min_ref)
-% Generate convergence analysis plots
-
+% Plotting (if possible)
 try
-    figure('Name', 'Convergence Analysis', 'Position', [100, 100, 1200, 900]);
+    figure('Name', 'Convergence Analysis', 'Position', [100, 100, 1000, 400]);
     
-    % Get valid data
-    valid_idx = ~isnan(results.errors);
-    valid_N = results.N_values(valid_idx);
-    valid_errors = results.errors(valid_idx);
-    valid_sigma = results.sigma_min(valid_idx);
-    valid_times = results.computation_times(valid_idx);
-    
-    % Plot 1: Convergence of σ_min
-    subplot(2, 3, 1);
-    plot(valid_N, valid_sigma, 'bo-', 'LineWidth', 2, 'MarkerSize', 6);
+    % Plot 1: σ_min vs N
+    subplot(1, 2, 1);
+    semilogx(N_values, sigma_min_values, 'bo-', 'LineWidth', 1.5, 'MarkerSize', 6);
     hold on;
-    yline(sigma_min_ref, 'r--', 'LineWidth', 2, 'DisplayName', sprintf('Reference (%.6e)', sigma_min_ref));
+    semilogx([N_values(1), N_values(end)], [sigma_ref, sigma_ref], 'r--', 'LineWidth', 1);
     xlabel('Number of Quadrature Nodes N');
-    ylabel('σ_{min}(W)');
+    ylabel('\sigma_{min}(W)');
     title('Convergence of Minimum Singular Value');
-    legend('Location', 'best');
     grid on;
+    legend('\sigma_{min}(W)', 'Reference value', 'Location', 'best');
     
-    % Plot 2: Error vs N (semi-log)
-    subplot(2, 3, 2);
-    semilogy(valid_N, valid_errors, 'ro-', 'LineWidth', 2, 'MarkerSize', 6);
+    % Plot 2: Error vs N
+    subplot(1, 2, 2);
+    errors = abs(sigma_min_values - sigma_ref) / sigma_ref;
+    semilogy(N_values, errors, 'ro-', 'LineWidth', 1.5, 'MarkerSize', 6);
     xlabel('Number of Quadrature Nodes N');
-    ylabel('|σ_{min}^{(N)} - σ_{min}^{(ref)}|');
-    title('Absolute Error (Semi-log)');
+    ylabel('Relative Error');
+    title('Convergence Error');
     grid on;
     
-    % Add convergence threshold line
-    convergence_threshold = 1e-6;
-    hold on;
-    yline(convergence_threshold, 'k--', 'LineWidth', 1, 'DisplayName', 'Convergence Threshold');
-    legend('Error', 'Threshold', 'Location', 'best');
-    
-    % Plot 3: Error vs N (log-log) with exponential fit
-    subplot(2, 3, 3);
-    if length(valid_N) >= 3
-        loglog(valid_N, valid_errors, 'go-', 'LineWidth', 2, 'MarkerSize', 6);
-        
-        % Fit exponential decay
-        log_errors = log(valid_errors + eps);
-        p = polyfit(valid_N, log_errors, 1);
-        N_fit = linspace(min(valid_N), max(valid_N), 100);
-        error_fit = exp(polyval(p, N_fit));
-        
+    % Add convergence line if available
+    if ~isempty(converged_idx)
         hold on;
-        loglog(N_fit, error_fit, 'k--', 'LineWidth', 1.5);
-        
-        xlabel('Number of Quadrature Nodes N');
-        ylabel('Absolute Error');
-        title('Error Convergence (Log-log)');
-        legend('Measured', sprintf('Fit: exp(-%.3f·N)', -p(1)), 'Location', 'best');
-        grid on;
+        semilogy([N_values(converged_idx), N_values(converged_idx)], ...
+            [min(errors), max(errors)], 'g--', 'LineWidth', 1);
+        legend('Relative error', sprintf('Converged at N=%d', N_values(converged_idx)), ...
+            'Location', 'best');
     end
     
-    % Plot 4: Computation Time vs N
-    subplot(2, 3, 4);
-    if any(valid_idx)
-        plot(valid_N, valid_times, 'mo-', 'LineWidth', 2, 'MarkerSize', 6);
-        xlabel('Number of Quadrature Nodes N');
-        ylabel('Computation Time (seconds)');
-        title('Computational Cost');
-        grid on;
-        
-        % Add linear fit to show O(N) scaling
-        if length(valid_N) >= 3
-            p_time = polyfit(valid_N, valid_times, 1);
-            time_fit = polyval(p_time, valid_N);
-            hold on;
-            plot(valid_N, time_fit, 'k--', 'LineWidth', 1);
-            legend('Measured', 'Linear Fit', 'Location', 'best');
-        end
-    end
-    
-    % Plot 5: Condition Number Convergence
-    subplot(2, 3, 5);
-    valid_kappa = results.kappa(valid_idx);
-    if any(~isnan(valid_kappa))
-        semilogy(valid_N, valid_kappa, 'co-', 'LineWidth', 2, 'MarkerSize', 6);
-        xlabel('Number of Quadrature Nodes N');
-        ylabel('κ(W)');
-        title('Condition Number Convergence');
-        grid on;
-    end
-    
-    % Plot 6: Efficiency (Error vs Time)
-    subplot(2, 3, 6);
-    if length(valid_errors) >= 3 && length(valid_times) >= 3
-        loglog(valid_times, valid_errors, 'ko-', 'LineWidth', 2, 'MarkerSize', 6);
-        xlabel('Computation Time (seconds)');
-        ylabel('Absolute Error');
-        title('Accuracy vs Efficiency');
-        grid on;
-        
-        % Add annotations for key points
-        for i = 1:2:length(valid_N)
-            text(valid_times(i), valid_errors(i), sprintf('N=%d', valid_N(i)), ...
-                 'VerticalAlignment', 'bottom', 'FontSize', 8);
-        end
-    end
-    
-    sgtitle('Convergence Analysis Results', 'FontSize', 14, 'FontWeight', 'bold');
-    
-    % Create a separate figure for the main convergence plot (matches paper Figure 1)
-    figure('Name', 'Paper Figure 1: Convergence Plot', 'Position', [200, 200, 800, 600]);
-    
-    semilogy(valid_N, valid_errors, 'ro-', 'LineWidth', 2.5, 'MarkerSize', 8, 'MarkerFaceColor', 'red');
-    xlabel('Quadrature Nodes N', 'FontSize', 12);
-    ylabel('log_{10}|σ_{min}^{(N)} - σ_{min}^{(200)}|', 'FontSize', 12);
-    title('Convergence of Minimum Singular Value with Quadrature Refinement', 'FontSize', 14);
-    grid on;
-    
-    % Add exponential convergence annotation
-    if length(valid_N) >= 5
-        % Find a good spot for annotation
-        mid_idx = round(length(valid_N)/2);
-        arrow_x = valid_N(mid_idx);
-        arrow_y = valid_errors(mid_idx);
-        
-        annotation('textarrow', [0.6, 0.4], [0.7, 0.5], 'String', 'Exponential\nconvergence', ...
-                   'FontSize', 12, 'HorizontalAlignment', 'center');
-    end
-    
-    % Add convergence threshold
-    yline(1e-6, 'k--', 'LineWidth', 1.5, 'DisplayName', 'Convergence Threshold (10^{-6})');
-    legend('Error', 'Threshold', 'Location', 'northeast', 'FontSize', 11);
-    
-    % Set y-limits for better visualization
-    ylim([1e-10, 1e-1]);
-    
-    fprintf('Convergence plots generated successfully.\n');
-    
-catch ME
-    fprintf('Warning: Could not generate convergence plots. Error: %s\n', ME.message);
+    fprintf('\n✓ Convergence plots generated\n');
+catch
+    fprintf('\n! Could not generate plots (graphics not available)\n');
 end
+
+fprintf('\n=== CONVERGENCE ANALYSIS COMPLETE ===\n');
 
 end
