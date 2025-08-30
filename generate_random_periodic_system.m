@@ -2,30 +2,30 @@ function [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T, var
 %GENERATE_RANDOM_PERIODIC_SYSTEM Generate random T-periodic system matrices
 %
 % Syntax:
-%   [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T)
-%   [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T, 'stable', true)
-%   [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T, 'controllable', true)
+% [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T)
+% [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T, 'stable', true)
+% [A_func, B_func, K_func] = generate_random_periodic_system(n, m, T, 'controllable', true)
 %
 % Inputs:
-%   n - State dimension
-%   m - Input dimension  
-%   T - Period
+% n - State dimension
+% m - Input dimension 
+% T - Period
 %
 % Optional parameters (name-value pairs):
-%   'stable'      - Ensure Floquet stability (default: false)
-%   'controllable'- Ensure controllability (default: false)
-%   'seed'        - Random seed for reproducibility (default: random)
-%   'amplitude'   - Amplitude of periodic variations (default: 0.3)
+% 'stable' - Ensure Floquet stability (default: false)
+% 'controllable'- Ensure controllability (default: false)
+% 'seed' - Random seed for reproducibility (default: random)
+% 'amplitude' - Amplitude of periodic variations (default: 0.3)
 %
 % Outputs:
-%   A_func - Function handle for A(t) (n×n periodic matrix)
-%   B_func - Function handle for B(t) (n×n periodic matrix)
-%   K_func - Function handle for K(t) (n×m periodic matrix)
+% A_func - Function handle for A(t) (n×n periodic matrix)
+% B_func - Function handle for B(t) (n×n periodic matrix)
+% K_func - Function handle for K(t) (n×m periodic matrix)
 %
 % The generated system has the form:
-%   A(t) = A0 + A1*cos(2πt/T) + A2*sin(2πt/T)
-%   B(t) = B0 + B1*cos(2πt/T) + B2*sin(2πt/T)  
-%   K(t) = K0 + K1*cos(2πt/T) + K2*sin(2πt/T)
+% A(t) = A0 + A1*cos(2πt/T) + A2*sin(2πt/T)
+% B(t) = B0 + B1*cos(2πt/T) + B2*sin(2πt/T) 
+% K(t) = K0 + K1*cos(2πt/T) + K2*sin(2πt/T)
 %
 % Author: M. S. V. D. Sudarsan
 % Email: msvdsudarsan@gmail.com
@@ -73,11 +73,11 @@ end
 if stable
     A0 = generate_stable_matrix(n);
 else
-    A0 = randn(n, n) * 0.5;  % Moderate random matrix
+    A0 = randn(n, n) * 0.5; % Moderate random matrix
 end
 
-B0 = randn(n, n) * 0.3;     % Smaller coupling matrix
-K0 = randn(n, m) * 0.5;     % Input matrix
+B0 = randn(n, n) * 0.3; % Smaller coupling matrix
+K0 = randn(n, m) * 0.5; % Input matrix
 
 % Generate periodic variations
 A1 = randn(n, n) * amplitude;
@@ -90,18 +90,16 @@ K2 = randn(n, m) * amplitude;
 %% Ensure controllability if requested
 if controllable
     fprintf('  → Adjusting for controllability...\n');
-    
     % Make sure K0 has sufficient rank
     [U, S, V] = svd(K0);
-    S_new = max(S, 0.1);  % Ensure minimum singular values
+    S_new = max(S, 0.1); % Ensure minimum singular values
     K0 = U * diag(S_new) * V';
-    
     % Add controllability-enhancing terms
     K0 = K0 + 0.1 * eye(n, min(n, m));
 end
 
 %% Create function handles
-omega = 2*pi/T;  % Angular frequency
+omega = 2*pi/T; % Angular frequency
 
 A_func = @(t) A0 + A1*cos(omega*t) + A2*sin(omega*t);
 B_func = @(t) B0 + B1*cos(omega*t) + B2*sin(omega*t);
@@ -177,10 +175,9 @@ end
 lambda_new = eig(A);
 if max(real(lambda_new)) >= 0
     warning('Failed to generate stable matrix, trying alternative approach');
-    
     % Alternative: construct stable matrix directly
     [Q, ~] = qr(randn(n, n));
-    D = diag(-abs(randn(n, 1)) - 0.1);  % Negative eigenvalues
+    D = diag(-abs(randn(n, 1)) - 0.1); % Negative eigenvalues
     A = Q * D * Q';
 end
 
