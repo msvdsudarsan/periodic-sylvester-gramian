@@ -1,7 +1,7 @@
 function example1_small_system_validation()
 %EXAMPLE1_SMALL_SYSTEM_VALIDATION Validates the block-wise Gramian computation
-%   This function demonstrates the algorithm on a small 2x2 periodic Sylvester system
-%   and verifies controllability using the Gramian criterion.
+% This function demonstrates the algorithm on a small 2x2 periodic Sylvester system
+% and verifies controllability using the Gramian criterion.
 
 fprintf('=== EXAMPLE 1: Small System Validation ===\n');
 fprintf('Testing periodic Sylvester system (n=2, m=1, T=2π)\n\n');
@@ -10,14 +10,14 @@ fprintf('Testing periodic Sylvester system (n=2, m=1, T=2π)\n\n');
 n = 2;
 m = 1;
 T = 2*pi;
-N = 101;  % Must be odd for Simpson's rule
+N = 101; % Must be odd for Simpson's rule
 
 fprintf('System dimensions: n=%d, m=%d, T=%.2f, N=%d\n', n, m, T, N);
 
 % Define periodic coefficient matrices - CORRECTED VALUES
 A_func = @(t) [0, 1; -1, 0] + 0.1*[cos(t), 0; 0, sin(t)];
 B_func = @(t) [0.5*sin(t), 0; 0, 0.5*cos(t)];
-K_func = @(t) 0.079 * [1 + 0.2*cos(t); 0.5*sin(t)];  % KEEP the 0.079 scaling factor
+K_func = @(t) 0.079 * [1 + 0.2*cos(t); 0.5*sin(t)]; % KEEP the 0.079 scaling factor
 
 % Display system matrices at t=0
 fprintf('\nSystem matrices at t=0:\n');
@@ -56,7 +56,11 @@ computation_time = toc;
 % Analyze Gramian properties
 sigma_min = min(eig(W));
 sigma_max = max(eig(W));
-cond_num = sigma_max / sigma_min;
+if sigma_min > 1e-15
+    cond_num = sigma_max / sigma_min;
+else
+    cond_num = Inf;
+end
 rank_W = rank(W, 1e-10);
 
 fprintf('Gramian analysis:\n');
@@ -84,10 +88,8 @@ for i = 1:length(N_values)
     if mod(N_values(i), 2) == 0
         continue; % Skip even values for Simpson's rule
     end
-    
     W_test = compute_periodic_gramian_block(A_func, B_func, K_func, T, N_values(i));
     sigma_values(i) = min(eig(W_test));
-    
     if i > 1 && sigma_values(i-1) > 0
         rel_change = abs(sigma_values(i) - sigma_values(i-1)) / sigma_values(i-1);
         fprintf('  N=%3d: σ_min = %.6e, rel. change = %.3e\n', ...
@@ -107,14 +109,12 @@ fprintf('• Convergence achieved by N=%d (relative change <10⁻³)\n', N);
 % Minimum energy control example
 fprintf('\nMinimum energy control example:\n');
 if sigma_min > 1e-10
-    x0 = [1; 0; 0; 0];  % Initial state (vectorized)
-    xf = [0; 0; 0; 1];  % Final state (vectorized)
-    
+    x0 = [1; 0; 0; 0]; % Initial state (vectorized)
+    xf = [0; 0; 0; 1]; % Final state (vectorized)
     % Compute state transition matrix Phi(T,0)
     Phi_T0 = compute_state_transition(A_func, B_func, T);
-    
     % Minimum energy control magnitude
-    W_inv = pinv(W);  % Use pseudo-inverse for numerical stability
+    W_inv = pinv(W); % Use pseudo-inverse for numerical stability
     control_magnitude = norm(W_inv * (xf - Phi_T0 * x0));
     fprintf('  Minimum energy control magnitude: %.6e\n', control_magnitude);
 else
@@ -126,7 +126,7 @@ end
 
 function Phi = compute_state_transition(A_func, B_func, T)
 %COMPUTE_STATE_TRANSITION Computes Phi(T,0) for vectorized system
-%   Returns the state transition matrix for the vectorized Sylvester system
+% Returns the state transition matrix for the vectorized Sylvester system
 
 n = size(A_func(0), 1);
 I_n2 = eye(n^2);
@@ -136,15 +136,13 @@ Acal_func = @(t) kron(eye(n), A_func(t)) + kron(B_func(t).', eye(n));
 
 % Solve for each column of Phi(T,0)
 Phi = zeros(n^2, n^2);
-opts = odeset('RelTol', 1e-12, 'AbsTol', 1e-15);
+opts = odeset('RelTol', 1e-9, 'AbsTol', 1e-12);
 
 for j = 1:n^2
     e_j = I_n2(:, j);
-    
     % Solve dx/dt = A_cal(t) * x with x(0) = e_j
     vec_ode = @(t, x) Acal_func(t) * x;
     [~, x_sol] = ode45(vec_ode, [0, T], e_j, opts);
-    
     Phi(:, j) = x_sol(end, :)';
 end
 end
