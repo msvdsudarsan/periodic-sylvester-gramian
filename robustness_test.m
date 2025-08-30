@@ -3,7 +3,7 @@ function robustness_test()
 %
 % Tests the periodic Sylvester Gramian computation algorithm under:
 % - Nearly singular systems
-% - Ill-conditioned matrices  
+% - Ill-conditioned matrices 
 % - Different quadrature orders
 % - Numerical precision limits
 %
@@ -34,7 +34,6 @@ fprintf('------------------------------------------\n');
 
 for i = 1:length(epsilon_values)
     eps = epsilon_values(i);
-    
     % Nearly singular K(t)
     K_func = @(t) [1; eps * sin(t)];
     
@@ -42,26 +41,31 @@ for i = 1:length(epsilon_values)
         W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N);
         sigma_vals = svd(W);
         sigma_min = min(sigma_vals);
-        kappa = max(sigma_vals) / min(sigma_vals);
+        if min(sigma_vals) > 1e-15
+            kappa = max(sigma_vals) / min(sigma_vals);
+        else
+            kappa = Inf;
+        end
         
         % Controllability assessment
         is_controllable = sigma_min > 1e-12;
-        status = char("CTRL" * is_controllable + "NEAR-SING" * ~is_controllable);
+        if is_controllable
+            status = 'CTRL';
+        else
+            status = 'NEAR-SING';
+        end
         
-        fprintf('%.0e   %.3e   %.2e   %s\n', eps, sigma_min, kappa, status);
+        fprintf('%.0e   %.3e      %.2e     %s\n', eps, sigma_min, kappa, status);
         
         % Check if σ_min scales as expected (≈ O(ε²))
-        if i > 1 && epsilon_values(i-1) / eps == 100  % Factor of 100 reduction in ε
-            expected_sigma_ratio = (epsilon_values(i-1) / eps)^2;  % Should be ≈ 10^4
+        if i > 1 && epsilon_values(i-1) / eps == 100 % Factor of 100 reduction in ε
+            expected_sigma_ratio = (epsilon_values(i-1) / eps)^2; % Should be ≈ 10^4
             actual_sigma_ratio = sigma_prev / sigma_min;
-            
             if abs(log10(actual_sigma_ratio) - log10(expected_sigma_ratio)) < 1
                 fprintf('  ✓ σ_min scaling follows O(ε²) as expected\n');
             end
         end
-        
         sigma_prev = sigma_min;
-        
     catch ME
         fprintf('%.0e   ERROR      ERROR        FAILED\n', eps);
         fprintf('  Error: %s\n', ME.message);
@@ -80,13 +84,11 @@ fprintf('----------------------------------------------\n');
 
 for i = 1:length(cond_numbers)
     kappa_target = cond_numbers(i);
-    
     try
         % Create ill-conditioned A(t)
         [U, ~, V] = svd(randn(n, n));
         singular_vals = logspace(0, -log10(kappa_target), n);
         A0_ill = U * diag(singular_vals) * V';
-        
         A_ill_func = @(t) A0_ill + 0.1*A0_ill*[cos(t), 0; 0, sin(t)];
         B_ill_func = @(t) [0.1*sin(t), 0; 0, 0.1*cos(t)];
         K_ill_func = @(t) 0.1 * [1 + 0.1*cos(t); 0.1*sin(t)];
@@ -103,12 +105,15 @@ for i = 1:length(cond_numbers)
         
         % Check if computation succeeded
         is_valid = ~any(isnan(W_ill(:))) && ~any(isinf(W_ill(:)));
-        status = char("SUCCESS" * is_valid + "FAILED" * ~is_valid);
+        if is_valid
+            status = 'SUCCESS';
+        else
+            status = 'FAILED';
+        end
         
-        fprintf('%.0e   %.3e   %.4f s   %s\n', actual_cond, sigma_min_ill, comp_time, status);
-        
+        fprintf('%.0e   %.3e       %.4f s   %s\n', actual_cond, sigma_min_ill, comp_time, status);
     catch ME
-        fprintf('%.0e   ERROR       ERROR     FAILED\n', kappa_target);
+        fprintf('%.0e   ERROR         ERROR     FAILED\n', kappa_target);
         fprintf('  Error: %s\n', ME.message);
     end
 end
@@ -131,7 +136,6 @@ fprintf('------------------------------------------\n');
 sigma_prev_quad = 0;
 for i = 1:length(N_values)
     N_test = N_values(i);
-    
     try
         tic;
         W_quad = compute_periodic_gramian_block(A_test, B_test, K_test, T, N_test);
@@ -145,11 +149,9 @@ for i = 1:length(N_values)
         else
             fprintf('%2d    %.6e   --------   %.4f\n', N_test, sigma_min_quad, quad_time);
         end
-        
         sigma_prev_quad = sigma_min_quad;
-        
     catch ME
-        fprintf('%2d    ERROR         ERROR     ERROR\n', N_test);
+        fprintf('%2d    ERROR       ERROR      ERROR\n', N_test);
         fprintf('  Error: %s\n', ME.message);
     end
 end
@@ -172,7 +174,6 @@ fprintf('------------------------------------------------\n');
 for i = 1:length(rel_tols)
     rel_tol = rel_tols(i);
     abs_tol = abs_tols(i);
-    
     try
         % Modify the computation function to use specific tolerances
         tic;
@@ -195,9 +196,8 @@ for i = 1:length(rel_tols)
         end
         
         fprintf('%.0e  %.0e   %.6e   %.4f   %s\n', rel_tol, abs_tol, sigma_min_prec, prec_time, status);
-        
     catch ME
-        fprintf('%.0e  %.0e   ERROR       ERROR    FAILED\n', rel_tol, abs_tol);
+        fprintf('%.0e  %.0e   ERROR       ERROR     FAILED\n', rel_tol, abs_tol);
         fprintf('  Error: %s\n', ME.message);
     end
 end
@@ -206,7 +206,7 @@ end
 fprintf('\nTEST 5: Extreme system sizes\n');
 fprintf('---------------------------\n');
 
-extreme_n_values = [1, 2, 3, 6];  % Test very small and moderately large
+extreme_n_values = [1, 2, 3, 6]; % Test very small and moderately large
 
 fprintf('n   σ_min(W)      κ(W)         Memory   Time(s)\n');
 fprintf('-------------------------------------------------\n');
@@ -224,23 +224,24 @@ for n_extreme = extreme_n_values
         
         % Monitor memory
         mem_before = monitor_memory_usage();
-        
         tic;
         W_ext = compute_periodic_gramian_block(A_ext, B_ext, K_ext, T, 21);
         ext_time = toc;
-        
         mem_after = monitor_memory_usage();
         mem_used = mem_after - mem_before;
         
         sigma_vals_ext = svd(W_ext);
         sigma_min_ext = min(sigma_vals_ext);
-        kappa_ext = max(sigma_vals_ext) / min(sigma_vals_ext);
+        if min(sigma_vals_ext) > 1e-15
+            kappa_ext = max(sigma_vals_ext) / min(sigma_vals_ext);
+        else
+            kappa_ext = Inf;
+        end
         
         fprintf('%d   %.6e   %.2e   %.1f MB  %.4f\n', ...
-            n_extreme, sigma_min_ext, kappa_ext, mem_used, ext_time);
-        
+                n_extreme, sigma_min_ext, kappa_ext, mem_used, ext_time);
     catch ME
-        fprintf('%d   ERROR        ERROR      ERROR   ERROR\n', n_extreme);
+        fprintf('%d   ERROR       ERROR        ERROR    ERROR\n', n_extreme);
         fprintf('  Error: %s\n', ME.message);
     end
 end
@@ -273,13 +274,13 @@ W = zeros(n^2, n^2);
 for i = 1:N
     Ki = K_func(tau(i));
     M_i = zeros(n^2, m*n);
-
+    
     for k = 1:m
         zcol = Ki(:, k);
         for j = 1:n
             ej = zeros(n, 1); ej(j) = 1;
             Z0 = zcol * (ej.');
-
+            
             if abs(tau(i) - T) < 1e-10
                 Z_final = Z0;
             else
@@ -288,12 +289,12 @@ for i = 1:N
                 [~, Z_sol] = ode45(sylv_ode, [tau(i), T], Z0(:), opts);
                 Z_final = reshape(Z_sol(end, :), n, n);
             end
-
+            
             col_idx = (k-1)*n + j;
             M_i(:, col_idx) = Z_final(:);
         end
     end
-
+    
     W = W + w(i) * (M_i * M_i');
 end
 
