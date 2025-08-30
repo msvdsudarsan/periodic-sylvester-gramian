@@ -13,12 +13,12 @@ This repository contains MATLAB implementations for computing reachability Grami
 dX/dt = A(t)X + XB(t) + K(t)U(t)
 ```
 
-where `A(t)`, `B(t)`, `K(t)` are T-periodic matrices.
+where A(t), B(t), K(t) are T-periodic matrices.
 
 ### Key Features
 
 - **Structure-exploiting algorithm**: Avoids explicit formation of n²×n² Kronecker matrices
-- **Complexity reduction**: From O(Nn⁶) to O(Nn³m) where N = quadrature nodes, m = input dimension  
+- **Complexity reduction**: From O(Nn⁶) to O(Nn³m) where N = quadrature nodes, m = input dimension 
 - **Numerical stability**: Robust handling of near-singular and ill-conditioned systems
 - **Complete validation**: Comprehensive test suite with convergence analysis
 
@@ -30,22 +30,22 @@ The algorithm computes the reachability Gramian:
 W(T) = ∫₀ᵀ Φ(T,τ) K̃(τ) K̃(τ)ᵀ Φ(T,τ)ᵀ dτ
 ```
 
-where `Φ(t,τ)` is the state transition matrix of the vectorized system and `K̃(t) = Iₙ ⊗ K(t)`.
+where Φ(t,τ) is the state transition matrix of the vectorized system and K̃(t) = Iₙ ⊗ K(t).
 
-**Controllability Criterion**: The system is controllable if and only if `W(T) ≻ 0` (positive definite).
+**Controllability Criterion**: The system is controllable if and only if W(T) ≻ 0 (positive definite).
 
 ## Installation
 
 1. Clone this repository:
-   ```bash
-   git clone https://github.com/msvdsudarsan/periodic-sylvester-gramian.git
-   cd periodic-sylvester-gramian
-   ```
+```bash
+git clone https://github.com/msvdsudarsan/periodic-sylvester-gramian.git
+cd periodic-sylvester-gramian
+```
 
 2. Add the directory to your MATLAB path:
-   ```matlab
-   addpath(pwd);
-   ```
+```matlab
+addpath(pwd);
+```
 
 ## Quick Start
 
@@ -58,37 +58,40 @@ B_func = @(t) [0.5*sin(t), 0; 0, 0.5*cos(t)];
 K_func = @(t) 0.079 * [1 + 0.2*cos(t); 0.5*sin(t)];
 
 % Compute reachability Gramian
-T = 2*pi;  % Period
-N = 101;   % Quadrature nodes (must be odd)
+T = 2*pi; % Period
+N = 101; % Quadrature nodes (must be odd)
 W = compute_periodic_gramian_block(A_func, B_func, K_func, T, N);
 
 % Check controllability
 sigma_min = min(svd(W));
 is_controllable = sigma_min > 1e-10;
-fprintf('System is %s (σ_min = %.3e)\n', ...
-    char("controllable" * is_controllable + "not controllable" * ~is_controllable), ...
-    sigma_min);
+if is_controllable
+    status = 'controllable';
+else
+    status = 'not controllable';
+end
+fprintf('System is %s (σ_min = %.3e)\n', status, sigma_min);
 ```
 
 ### Run All Examples
 
 ```matlab
-run_all_examples();  % Comprehensive demonstration
+run_all_examples(); % Comprehensive demonstration
 ```
 
 ## Repository Structure
 
 ```
-├── compute_periodic_gramian_block.m     % Main algorithm implementation
-├── example1_small_system_validation.m   % Small system validation (n=2)
-├── example2_performance_comparison.m    % Performance analysis for larger systems
-├── convergence_analysis.m               % Quadrature convergence study
-├── robustness_test.m                   % Algorithm robustness testing
-├── verify_paper_results.m              % Complete paper verification
-├── run_all_examples.m                  % Run all demonstrations
-├── generate_random_periodic_system.m   % Random system generator
-├── README.md                           % This file
-└── LICENSE                             % MIT license
+├── compute_periodic_gramian_block.m    # Main algorithm implementation
+├── example1_small_system_validation.m  # Small system validation (n=2)
+├── example2_performance_comparison.m   # Performance analysis for larger systems
+├── convergence_analysis.m              # Quadrature convergence study
+├── robustness_test.m                   # Algorithm robustness testing
+├── verify_paper_results.m              # Complete paper verification
+├── run_all_examples.m                  # Run all demonstrations
+├── generate_random_periodic_system.m   # Random system generator
+├── README.md                           # This file
+└── LICENSE                             # MIT license
 ```
 
 ## Key Results
@@ -96,24 +99,24 @@ run_all_examples();  % Comprehensive demonstration
 ### Example 1: Small System (n=2, m=1)
 
 **System Parameters:**
-- `A(t) = [0,1; -1,0] + 0.1*[cos(t),0; 0,sin(t)]`
-- `B(t) = [0.5*sin(t),0; 0,0.5*cos(t)]`  
-- `K(t) = 0.079 * [1+0.2*cos(t); 0.5*sin(t)]`
+- A(t) = [0,1; -1,0] + 0.1*[cos(t),0; 0,sin(t)]
+- B(t) = [0.5*sin(t),0; 0,0.5*cos(t)]
+- K(t) = 0.079 * [1+0.2*cos(t); 0.5*sin(t)]
 
 **Results (N=101 nodes):**
-- σ_min(W) = 1.071×10⁻²
-- κ(W) = 2.761×10⁰
-- System is **controllable**
+- σ_min(W) = 1.088×10⁻²
+- κ(W) = 2.703
+- System is controllable
 - Well-conditioned Gramian
 
 ### Performance Comparison
 
 | n | Direct Method | Block Method | Speedup | Memory Ratio |
 |---|---------------|--------------|---------|--------------|
-| 5 | 0.42s        | 0.08s        | 5.3×    | 25:1        |
-| 10| 15.3s        | 0.31s        | 49×     | 100:1       |
-| 15| 287s         | 0.89s        | 322×    | 225:1       |
-| 20| 2140s        | 2.1s         | 1019×   | 400:1       |
+| 5 | 0.42s | 0.08s | 5.3× | 25:1 |
+| 10| 15.3s | 0.31s | 49× | 100:1 |
+| 15| 287s | 0.89s | 322× | 225:1 |
+| 20| 2140s | 2.1s | 1019× | 400:1 |
 
 ## API Reference
 
@@ -125,7 +128,7 @@ Computes the reachability Gramian using block-wise propagation.
 
 **Parameters:**
 - `A_func`: Function handle for A(t) (returns n×n matrix)
-- `B_func`: Function handle for B(t) (returns n×n matrix)  
+- `B_func`: Function handle for B(t) (returns n×n matrix) 
 - `K_func`: Function handle for K(t) (returns n×m matrix)
 - `T`: Period (positive scalar)
 - `N`: Number of quadrature nodes (odd integer)
@@ -148,9 +151,9 @@ Generates random T-periodic system matrices for testing.
 Run the complete validation suite:
 
 ```matlab
-verify_paper_results();  % Verify all paper claims
-convergence_analysis();  % Study quadrature convergence  
-robustness_test();       % Test numerical robustness
+verify_paper_results(); % Verify all paper claims
+convergence_analysis(); % Study quadrature convergence 
+robustness_test(); % Test numerical robustness
 ```
 
 ### Convergence Properties
@@ -205,7 +208,7 @@ Contributions are welcome! Please:
 ## Performance Tips
 
 1. **Choose N wisely**: N=41-101 usually sufficient, must be odd
-2. **Monitor memory**: Memory usage ≈ 8n⁴ bytes for the Gramian  
+2. **Monitor memory**: Memory usage ≈ 8n⁴ bytes for the Gramian 
 3. **Use appropriate tolerances**: RelTol=1e-9, AbsTol=1e-12 recommended
 4. **For large n**: Consider iterative eigenvalue methods instead of full SVD
 
@@ -216,7 +219,7 @@ Contributions are welcome! Please:
 **"N must be odd for composite Simpson rule"**
 - Solution: Use odd values for N (e.g., 41, 61, 101)
 
-**"Matrix dimensions must agree"**  
+**"Matrix dimensions must agree"** 
 - Check that A(t) and B(t) return n×n matrices
 - Check that K(t) returns n×m matrix
 
@@ -239,7 +242,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Author:** M. S. V. D. Sudarsan  
 **Email:** msvdsudarsan@gmail.com  
-**Affiliation:** Independent Researcher  
+**Affiliation:** Independent Researcher
 
 ---
 
