@@ -177,11 +177,11 @@ in Periodic Sylvester Matrix Differential Systems"
 
 ```bibtex
 @article{sudarsan2025periodic,
-  title={Controllability and Efficient Gramian Computation for Periodic Sylvester Matrix Systems},
+  title={A Structure-Preserving Strategy for Reachability Gramian Computation 
+in Periodic Sylvester Matrix Differential Systems},
   author={Sudarsan, M. S. V. D.},
-  journal={Applied Mathematics Letters},
   year={2025},
-  note={Manuscript submitted}
+  note={Manuscript under review}
 }
 ```
 
