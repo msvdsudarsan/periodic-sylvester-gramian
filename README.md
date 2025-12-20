@@ -168,7 +168,9 @@ robustness_test(); % Test numerical robustness
 
 This implementation accompanies the research paper:
 
-**"Controllability and Efficient Gramian Computation for Periodic Sylvester Matrix Systems"**
+**""A Structure-Preserving Strategy for Reachability Gramian Computation 
+in Periodic Sylvester Matrix Differential Systems"
+"**
 *by M. S. V. D. Sudarsan*
 
 ### Citation
