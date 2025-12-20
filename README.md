@@ -4,7 +4,8 @@
 [![MATLAB](https://img.shields.io/badge/MATLAB-R2020a+-orange.svg)](https://www.mathworks.com/products/matlab.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Efficient computation of reachability Gramians for periodic Sylvester matrix systems using structure-exploiting block propagation algorithms.
+Structure-preserving and Kronecker-free computation of reachability Gramians for periodic Sylvester matrix differential systems.
+
 
 ## Overview
 
