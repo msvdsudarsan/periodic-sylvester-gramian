@@ -1,4 +1,5 @@
-# # A Kronecker-Free Block-Wise Strategy for Reachability Gramian Computation in Periodic Sylvester Matrix Differential Systems
+#  A Structure-Preserving Strategy for Reachability Gramian Computation in Periodic Sylvester Matrix Differential Systems
+
 
 
 [![MATLAB](https://img.shields.io/badge/MATLAB-R2020a+-orange.svg)](https://www.mathworks.com/products/matlab.html)
