@@ -1,10 +1,10 @@
-# # Structure-Preserving Reachability Gramian Computation for Periodic Sylvester Systems
+# # A Structure-Preserving Reachability Gramian Computation for Periodic Sylvester Systems
 
 
 [![MATLAB](https://img.shields.io/badge/MATLAB-R2020a+-orange.svg)](https://www.mathworks.com/products/matlab.html)
 
 
-Structure-preserving and Kronecker-free computation of reachability Gramians for periodic Sylvester matrix differential systems.
+A Structure-preserving and Kronecker-free computation of reachability Gramians for periodic Sylvester matrix differential systems.
 
 
 ## Overview
@@ -180,7 +180,6 @@ in Periodic Sylvester Matrix Differential Systems"
   title={A Structure-Preserving Strategy for Reachability Gramian Computation 
 in Periodic Sylvester Matrix Differential Systems},
   author={Sudarsan, M. S. V. D.},
-  year={2025},
   note={Manuscript under review}
 }
 ```
