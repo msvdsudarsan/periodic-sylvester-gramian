@@ -1,4 +1,4 @@
-#  A Structure-Preserving Strategy for Reachability Gramian Computation in Periodic Sylvester Matrix Differential Systems
+# # A Structure-Preserving Strategy for Reachability Gramian Computation in Periodic Sylvester Matrix Differential Systems
 
 
 
