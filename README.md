@@ -1,10 +1,10 @@
-# # A Structure-Preserving Reachability Gramian Computation for Periodic Sylvester Systems
+# # A Kronecker-Free Block-Wise Strategy for Reachability Gramian Computation in Periodic Sylvester Matrix Differential Systems
 
 
 [![MATLAB](https://img.shields.io/badge/MATLAB-R2020a+-orange.svg)](https://www.mathworks.com/products/matlab.html)
 
 
-A Structure-preserving and Kronecker-free computation of reachability Gramians for periodic Sylvester matrix differential systems.
+A Kronecker-Free Block-Wise Strategy for Reachability Gramian Computation in Periodic Sylvester Matrix Differential Systems.
 
 
 ## Overview
@@ -168,8 +168,7 @@ robustness_test(); % Test numerical robustness
 
 This implementation accompanies the research paper:
 
-**""A Structure-Preserving Strategy for Reachability Gramian Computation 
-in Periodic Sylvester Matrix Differential Systems"
+**""A Kronecker-Free Block-Wise Strategy for Reachability Gramian Computation in Periodic Sylvester Matrix Differential Systems"
 "**
 *by M. S. V. D. Sudarsan*
 
