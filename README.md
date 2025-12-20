@@ -1,4 +1,5 @@
-# Periodic Sylvester Gramian Computation
+# # Structure-Preserving Reachability Gramian Computation for Periodic Sylvester Systems
+
 
 [![MATLAB](https://img.shields.io/badge/MATLAB-R2020a+-orange.svg)](https://www.mathworks.com/products/matlab.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
