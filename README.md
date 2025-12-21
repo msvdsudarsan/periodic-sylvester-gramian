@@ -262,3 +262,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   - Complete validation suite
   - Research paper examples
   - Performance benchmarks
+ 
+  Note: Figures in the manuscript are exported using MATLAB's exportgraphics 
+for publication-quality formatting. Running the scripts reproduces the 
+same numerical results and plot trends.
+
