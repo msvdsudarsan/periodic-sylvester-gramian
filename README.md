@@ -176,11 +176,13 @@ This implementation accompanies the research paper:
 ### Citation
 
 ```bibtex
-@article{sudarsan2025periodic,
-  title={A Structure-Preserving Strategy for Reachability Gramian Computation 
-in Periodic Sylvester Matrix Differential Systems},
-  author={Sudarsan, M. S. V. D.},
-  note={Manuscript under review}
+@article{sudarsan2025kronecker,
+  title   = {A Kronecker-Free Block-Wise Strategy for Reachability Gramian Computation in Periodic Sylvester Matrix Differential Systems},
+  author  = {Sudarsan, M. S. V. D. and Kumar, Pradheep S.},
+  journal = {International Journal of Computer Mathematics},
+  year    = {2025},
+  note    = {Submitted},
+  url     = {https://github.com/msvdsudarsan/periodic-sylvester-gramian}
 }
 ```
 
