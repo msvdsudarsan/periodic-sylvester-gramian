@@ -1,4 +1,4 @@
-# # A Structure-Preserving Strategy for Reachability Gramian Computation in Periodic Sylvester Matrix Differential Systems
+# # A Kronecker-Free Block-Wise Strategy for Reachability Gramian Computation in Periodic Sylvester Matrix Differential Systems
 
 
 
@@ -13,7 +13,8 @@ A Kronecker-Free Block-Wise Strategy for Reachability Gramian Computation in Per
 This repository contains MATLAB implementations for computing reachability Gramians of periodic Sylvester matrix systems of the form:
 
 ```
-dX/dt = A(t)X + XB(t) + K(t)U(t)
+dX/dt = A(t)X + X B(t) + K(t)U(t)
+
 ```
 
 where A(t), B(t), K(t) are T-periodic matrices.
@@ -270,5 +271,6 @@ for publication-quality formatting. Running the scripts reproduces the
 same numerical results and plot trends.
 
 Citation
-If you use this code, please cite the paper using the BibTeX entry in CITATION.bib.
+If you use this code, please cite the associated paper using the BibTeX entry provided in CITATION.bib.
+
 
