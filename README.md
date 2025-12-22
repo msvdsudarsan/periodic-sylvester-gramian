@@ -267,3 +267,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 for publication-quality formatting. Running the scripts reproduces the 
 same numerical results and plot trends.
 
+Citation
+If you use this code, please cite the paper using the BibTeX entry in CITATION.bib.
+
